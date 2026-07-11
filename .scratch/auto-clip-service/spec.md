@@ -8,7 +8,7 @@ The API-side slice of the CS2 auto-clipper "friends-only clip service" effort.
 
 | Issue | Milestone | Status |
 |---|---|---|
-| `issues/01-git-init-and-migrations-baseline.md` | M0 | open |
+| `issues/01-git-init-and-migrations-baseline.md` | M0 | resolved (2026-07-11) |
 | `issues/02-clip-match-model-and-ingestion.md` | M2 | open |
 | `issues/03-clips-list-api.md` | M3 | open |
 | `issues/04-matches-mine-api.md` | M4 | open |

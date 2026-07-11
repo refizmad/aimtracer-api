@@ -1,6 +1,6 @@
 # 01 — Git init + Prisma migrations baseline (M0)
 
-Status: open
+Status: resolved
 Milestone: M0 (ROADMAP.md, workspace root)
 
 ## Scope
@@ -15,3 +15,5 @@ Milestone: M0 (ROADMAP.md, workspace root)
 - `prisma/migrations/` exists; `prisma migrate status` reports the dev DB in sync.
 
 ## Comments
+
+**2026-07-11 — resolved.** `git init -b main`, two commits (3cd8766 initial, 897a3ee migrations baseline). `.gitignore` gained `/logs` and `.server-pid`; secret scan of the committable tree found nothing (seed/docker-compose use dev placeholders only). Baseline `20260711000000_init` generated via `migrate diff --from-empty` after confirming zero drift between the live dev DB and `schema.prisma`; `prisma migrate status` reports in sync. `.scratch/` is deliberately tracked (issue history, no secrets). Repo-local git identity set to match the sibling repos. Note: `npm test` currently exits with "no tests found" — first specs land with M2 ingestion per issue 02.
