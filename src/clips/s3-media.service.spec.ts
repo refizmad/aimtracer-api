@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { S3MediaService } from './s3-media.service';
+import { isPlayableStoredUrl, S3MediaService } from './s3-media.service';
 
 function makeConfig(map: Record<string, string | undefined>): ConfigService {
   return {
@@ -36,6 +36,24 @@ describe('S3MediaService', () => {
     );
     expect(result.source).toBe('stored');
     expect(result.url).toContain('bucket.example');
+  });
+
+  it('isPlayableStoredUrl rejects bare private S3/e2 object URLs', () => {
+    expect(
+      isPlayableStoredUrl(
+        'https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/a.mp4',
+      ),
+    ).toBe(false);
+    expect(
+      isPlayableStoredUrl(
+        'https://s3.example/bucket/a.mp4?X-Amz-Signature=abc',
+      ),
+    ).toBe(true);
+    expect(
+      isPlayableStoredUrl(
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/x.mp4',
+      ),
+    ).toBe(true);
   });
 
   it('builds object keys with prefix', () => {

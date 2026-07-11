@@ -106,14 +106,35 @@ export class S3MediaService {
       };
     }
 
-    if (storedUrl && /^https?:\/\//i.test(storedUrl)) {
+    // Only use a stored URL if it is still a usable signed GET (or a public URL).
+    // Bare iDrive/S3 object paths (fixtures / expired manifests) 403 on private buckets
+    // and look like "clips not loading" in the gallery.
+    if (storedUrl && isPlayableStoredUrl(storedUrl)) {
       return { url: storedUrl, source: 'stored', expiresIn: null };
     }
 
     throw new ServiceUnavailableException({
       code: 'MEDIA_UNAVAILABLE',
-      message:
-        'Clip media signing is not configured (set S3_* env vars on the API)',
+      message: this.configured
+        ? 'Could not mint a playable URL for this clip'
+        : 'Clip media signing is not configured — set S3_* env vars on the API (private bucket, ADR-0004)',
     });
   }
+}
+
+/** True if the URL is likely to stream without API re-signing. */
+export function isPlayableStoredUrl(url: string): boolean {
+  if (!/^https?:\/\//i.test(url)) return false;
+  // SigV4 / older S3 query signatures
+  if (/[?&]X-Amz-Signature=/i.test(url) || /[?&]Signature=/i.test(url)) {
+    return true;
+  }
+  // Known private object hosts without a signature will AccessDenied
+  if (
+    /idrivee2|amazonaws\.com|\.r2\.cloudflarestorage\.com|s3[.-]/i.test(url)
+  ) {
+    return false;
+  }
+  // Other https URLs (CDN / public samples) — allow
+  return true;
 }
