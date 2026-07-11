@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ClipsService } from './clips.service';
+import { ClipsController } from './clips.controller';
+import { S3MediaService } from './s3-media.service';
+import { PlayerSessionGuard } from '../common/player-session.guard';
 
 @Module({
-  providers: [ClipsService],
-  exports: [ClipsService],
+  controllers: [ClipsController],
+  providers: [ClipsService, S3MediaService, PlayerSessionGuard],
+  exports: [ClipsService, S3MediaService],
 })
 export class ClipsModule {}

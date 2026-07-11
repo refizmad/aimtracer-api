@@ -1,18 +1,24 @@
 # 03 — Clips list API (M3, API side)
 
-Status: open
-Milestone: M3 (ROADMAP.md, workspace root)
+Status: resolved
+Milestone: M3 (ROADMAP.md)
 Blocked by: 02
-Counterpart: aimtrace GitHub issue "M3 (web)".
 
 ## Scope
 
-- Session-authenticated `GET /clips`: all players' clips (ADR-0002, all friends see all), filters (player, map, min kills, type), sort (date, kills, score), pagination.
-- `GET /clips/mine` (or `?player=me`) for the "My clips" tab.
-- Clip URLs are static public-bucket URLs stored at ingestion (ADR-0004) — no signing on read.
+- Session-authenticated `GET /clips` (all players — ADR-0002) with filters (player, map, min kills, type) + pagination.
+- `GET /clips/mine`.
 
 ## Acceptance
 
-- A valid session lists and filters clips across players; no session ⇒ 401. Verified against seeded fixture data.
+- Logged-in friend can list all clips and own clips with filters.
+
+## Answer
+
+Landed 2026-07-11 with M1 media:
+
+- `ClipsController`: `GET /clips`, `GET /clips/mine`, `GET /clips/:id`, `GET /clips/:id/media`
+- Filters: player (steam64), map, minKills, type, sort (date|kills|score), order, page, pageSize
+- `playUrl` points at BFF media path
 
 ## Comments

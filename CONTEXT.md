@@ -41,7 +41,8 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 - **Match** — a player's CS2 match keyed by share code (`Match` model; evolved from the old `MatchShareCode` discovery row). Lifecycle: `DETECTED` → `DOWNLOADED` → `RENDERED` / `FAILED`. `matchDate` is discovery/submit time for the beta (not yet demo-header time).
 - **Clip** — a rendered highlight row (`Clip` model), upserted by `file` (mp4 basename = S3 object key / manifest dedup key) when a worker reports `COMPLETED`. Metadata (map, kills, type, score, …) comes from the clipper sidecar via `result.clips[]`.
 - **Ingestion** — `ClipsService.ingestCompletedJob` runs as a non-fatal side effect of `PATCH /worker/jobs/:id` (job row remains source of truth). Stage reports past download advance Match to `DOWNLOADED`.
-- **Clip URL** — bucket stays private (ADR-0004). Durable identity is `Clip.file`; API-issued short-lived presigned GETs are M1 (playback). `Clip.url` may hold a worker-supplied URL that expires.
+- **Clip URL** — bucket stays private (ADR-0004). Durable identity is `Clip.file`. `GET /clips/:id/media` (session) mints a short-lived presigned GET via `S3MediaService` when `S3_*` is set; non-production falls back to `CLIP_MEDIA_DEV_FALLBACK_URL` so local UI works without real credentials. `Clip.url` may hold a worker-supplied URL that expires.
+- **Clip list** — `GET /clips` (all friends, ADR-0002) and `GET /clips/mine` with filters (map, minKills, type, sort, pagination).
 
 ## Related contexts
 

@@ -5,6 +5,8 @@
 const { PrismaClient, JobStatus, JobSource, MatchStatus } = require('@prisma/client');
 // nest build emits under dist/src (see package layout).
 const { ClipsService } = require('../dist/src/clips/clips.service');
+const { S3MediaService } = require('../dist/src/clips/s3-media.service');
+const { ConfigService } = require('@nestjs/config');
 
 const prisma = new PrismaClient();
 
@@ -72,7 +74,8 @@ async function main() {
   });
 
   // Use the same service path as the worker report handler
-  const clipsService = new ClipsService(prisma);
+  const media = new S3MediaService(new ConfigService());
+  const clipsService = new ClipsService(prisma, media);
   const { ingested } = await clipsService.ingestCompletedJob(job);
 
   const clip = await prisma.clip.findUnique({

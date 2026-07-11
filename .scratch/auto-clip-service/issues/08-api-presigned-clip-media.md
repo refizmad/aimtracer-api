@@ -1,10 +1,10 @@
 # 08 — API-issued presigned clip media (M1, API side)
 
-Status: open
+Status: resolved
 Milestone: M1 (ROADMAP.md, workspace root) — reframed after iDrive public-bucket refusal
 Blocked by: 02
 ADR: docs/adr/0004-public-bucket-clip-urls.md (private bucket + API presigns)
-Counterpart: cs2-clip#1 (confirm worker stays on private/presign upload; no public ACL required)
+Counterpart: cs2-clip#1 (worker stays private/presign; no public ACL required)
 
 ## Scope
 
@@ -18,5 +18,14 @@ Counterpart: cs2-clip#1 (confirm worker stays on private/presign upload; no publ
 - A logged-in session can play a private object via the media endpoint; anonymous cannot.
 - Object is not world-readable (no public ACL).
 - Unit/integration test of URL minting with a mocked S3 signer (no live bucket).
+
+## Answer
+
+Landed 2026-07-11:
+
+- `S3MediaService` + `GET /clips/:id/media` (session) → short-lived presigned URL when `S3_*` set.
+- Non-production dev fallback sample mp4 when S3 unset (`CLIP_MEDIA_DEV_FALLBACK_URL` / default sample).
+- Unit tests in `s3-media.service.spec.ts`.
+- aimtrace BFF: `GET /api/clips/:id/media` 302s to resolved URL (cookie auth, same-origin `<video src>`).
 
 ## Comments
