@@ -1,0 +1,7 @@
+# Install on the VPS (user with docker rights), after deploy/.env is filled.
+# Adjust path to the aimtrace-api checkout.
+#
+# 0 3 * * * cd /opt/aimtrace-api && docker compose -f deploy/docker-compose.yml --env-file deploy/.env run --rm backup >> /var/log/aimtrace-backup.log 2>&1
+#
+# Optional: copy newest dump to e2 from the host (awscli + same keys as deploy/.env):
+# 15 3 * * * cd /opt/aimtrace-api/deploy/backups && NEWEST=$(ls -1t aimtrace-*.sql.gz | head -1) && aws --endpoint-url "$S3_ENDPOINT_URL" s3 cp "$NEWEST" "s3://$S3_BUCKET/backups/postgres/$NEWEST"

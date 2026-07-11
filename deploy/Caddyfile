@@ -1,0 +1,28 @@
+# Reverse proxy for aimtrace-api.
+# Set API_DOMAIN in deploy/.env (e.g. api.aimtracer.com).
+# Caddy obtains Let's Encrypt certs automatically when DNS points here.
+
+{$API_DOMAIN:api.aimtracer.com} {
+	encode gzip
+
+	# Long-poll lease may hold a connection up to ~MAX_LEASE_WAIT_SECONDS.
+	reverse_proxy api:5500 {
+		transport http {
+			read_timeout 60s
+			write_timeout 60s
+		}
+	}
+
+	header {
+		# API is called by aimtracer.com (browser BFF is server-side; workers use machine tokens).
+		# CORS is still handled in Nest for the rare direct browser case.
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

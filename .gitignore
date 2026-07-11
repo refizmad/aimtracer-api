@@ -24,6 +24,9 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
+deploy/.env
+deploy/backups/*
+!deploy/backups/.gitkeep
 
 # local runtime state
 /logs

@@ -46,6 +46,12 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 - **Clip list** — `GET /clips` (all friends, ADR-0002) and `GET /clips/mine` with filters (map, minKills, type, sort, pagination).
 - **Match list** — `GET /matches/mine` returns the session player's matches only (map, date, status DETECTED→DOWNLOADED→RENDERED/FAILED, clip count, linked job), plus a status summary.
 
+## Production (M6)
+
+- **Deploy unit** — one VPS runs Postgres + this API + Caddy HTTPS (`deploy/docker-compose.yml`). aimtrace web stays on its own host with `CLIPPER_BACKEND_URL` pointing at `https://API_DOMAIN`.
+- **Runbook** — `deploy/RUNBOOK.md` (provision, DNS, secrets, seed worker/invite, backups). User owns credential-bearing steps.
+- **Backups** — nightly `pg_dump` via `deploy/backup-pg.sh` into `deploy/backups/` (+ optional e2 upload).
+
 ## Related contexts
 
 - **[[cs2-clip]]** — the worker process that leases and fulfils jobs (`worker.py`).

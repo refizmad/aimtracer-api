@@ -2,6 +2,21 @@
 
 NestJS + Fastify backend for aimtracer clipper integration.
 
+## Production deploy (M6)
+
+See **[deploy/RUNBOOK.md](./deploy/RUNBOOK.md)** — docker-compose + Caddy + Postgres on a small VPS.
+
+```bash
+cp deploy/.env.example deploy/.env   # fill secrets on the VPS only
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+```
+
+Local Postgres for development remains:
+
+```bash
+docker compose up -d   # root docker-compose.yml → localhost:5432
+```
+
 ## Friends-only auth (MVP)
 
 Clip job routes and player features are **invite-only**. Steam OpenID is verified in this API; aimtrace holds an httpOnly session cookie and forwards `Authorization: Bearer` / `X-Session-Token`.
