@@ -132,6 +132,8 @@ curl -fsS https://api.aimtracer.com/health
 
 Worker token + friend invite are created in the **admin UI** (next section) — no curl.
 
+**If Setup says `Cannot POST /admin/setup`:** the api container is still on an older image without that route. Redeploy the **api** service from the branch that includes `POST /admin/setup` (commit message like “one-shot admin setup”). Confirm in Coolify deploy logs / API swagger that `{/admin/setup, POST}` is registered.
+
 ---
 
 ## 4. Service: web (`aimtrace` / aimtracer.com)
