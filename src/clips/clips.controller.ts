@@ -10,9 +10,12 @@ import { PlayerSessionGuard, AuthenticatedPlayer } from '../common/player-sessio
 import { CurrentPlayer } from '../common/current-player.decorator';
 import { ClipsService } from './clips.service';
 
+/**
+ * Gallery list endpoints stay friends-only (session).
+ * Single-clip GET + media are intentionally public/unlisted: anyone with the
+ * share link (`/clip/:publicCode`) can watch that one clip — not the catalog.
+ */
 @ApiTags('clips')
-@ApiSecurity('session-token')
-@UseGuards(PlayerSessionGuard)
 @Controller('clips')
 export class ClipsController {
   constructor(private readonly clips: ClipsService) {}
@@ -21,6 +24,8 @@ export class ClipsController {
    * All friends' clips (ADR-0002). Session required; no public access.
    */
   @Get()
+  @UseGuards(PlayerSessionGuard)
+  @ApiSecurity('session-token')
   @ApiOperation({ summary: "List all friends' clips (paginated, filterable)" })
   @ApiQuery({ name: 'player', required: false, description: 'Steam64 of clip owner' })
   @ApiQuery({ name: 'map', required: false })
@@ -54,6 +59,8 @@ export class ClipsController {
   }
 
   @Get('mine')
+  @UseGuards(PlayerSessionGuard)
+  @ApiSecurity('session-token')
   @ApiOperation({ summary: "List the current player's clips" })
   @ApiQuery({ name: 'map', required: false })
   @ApiQuery({ name: 'minKills', required: false })
@@ -87,11 +94,10 @@ export class ClipsController {
   @Get(':id/media')
   @ApiOperation({
     summary:
-      'Resolve a short-lived playable URL (video or JPEG poster via ?kind=poster)',
+      'Public unlisted: short-lived playable URL for one clip (video or poster)',
   })
   @ApiQuery({ name: 'kind', required: false, description: 'video (default) | poster' })
   async media(
-    @CurrentPlayer() _player: AuthenticatedPlayer,
     @Param('id') id: string,
     @Query('kind') kind?: string,
   ) {
@@ -101,12 +107,10 @@ export class ClipsController {
 
   @Get(':id')
   @ApiOperation({
-    summary: 'Fetch one clip by short public code or internal UUID',
+    summary:
+      'Public unlisted: one clip by short public code (or UUID). Not a catalog.',
   })
-  async getOne(
-    @CurrentPlayer() _player: AuthenticatedPlayer,
-    @Param('id') id: string,
-  ) {
+  async getOne(@Param('id') id: string) {
     const clip = await this.clips.getPublicClip(id);
     return { clip };
   }

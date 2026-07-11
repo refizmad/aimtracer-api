@@ -173,12 +173,14 @@ export class ClipsService implements OnModuleInit {
       where.kills = { gte: q.minKills };
     }
 
+    // Newest first by default (createdAt = ingest time — when the clip appeared).
+    // id secondary keeps a stable order when timestamps collide.
     const orderBy: Prisma.ClipOrderByWithRelationInput[] =
       sort === 'kills'
-        ? [{ kills: order }, { createdAt: 'desc' }]
+        ? [{ kills: order }, { createdAt: 'desc' }, { id: 'desc' }]
         : sort === 'score'
-          ? [{ score: order }, { createdAt: 'desc' }]
-          : [{ createdAt: order }];
+          ? [{ score: order }, { createdAt: 'desc' }, { id: 'desc' }]
+          : [{ createdAt: order }, { id: 'desc' }];
 
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.clip.count({ where }),
