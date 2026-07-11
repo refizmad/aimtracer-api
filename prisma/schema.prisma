@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  PENDING
+  LEASED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PlayerStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  DISABLED
+  INVALID_AUTH
+  CHAIN_BROKEN
+}
+
+enum JobSource {
+  manual
+  auto_match_history
+}
+
+model Worker {
+  id           String    @id @default(uuid())
+  name         String
+  machineToken String    @unique @map("machine_token")
+  enabled      Boolean   @default(true)
+  lastSeenAt   DateTime? @map("last_seen_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  jobs Job[]
+
+  @@map("workers")
+}
+
+model Player {
+  id          String       @id @default(uuid())
+  steamId64   String       @unique @map("steam_id64")
+  displayName String?      @map("display_name")
+  avatarUrl   String?      @map("avatar_url")
+  status      PlayerStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  sessions   Session[]
+  inviteUsed Invite?                  @relation("InviteUsedBy")
+  jobs       Job[]
+  enrollment MatchHistoryEnrollment?
+  shareCodes MatchShareCode[]
+
+  @@map("players")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @map("token_hash")
+  playerId  String   @map("player_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Invite {
+  id        String    @id @default(uuid())
+  code      String    @unique
+  note      String?
+  maxUses   Int       @default(1) @map("max_uses")
+  useCount  Int       @default(0) @map("use_count")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  usedById  String?   @unique @map("used_by_id")
+  usedBy    Player?   @relation("InviteUsedBy", fields: [usedById], references: [id])
+
+  @@map("invites")
+}
+
+/// Short-lived OpenID state for CSRF protection on Steam login.
+model AuthState {
+  id         String   @id @default(uuid())
+  state      String   @unique
+  inviteCode String?  @map("invite_code")
+  returnTo   String   @map("return_to")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("auth_states")
+}
+
+/// Match history auth for auto-clip. Row exists only after first successful enroll.
+model MatchHistoryEnrollment {
+  id                 String           @id @default(uuid())
+  playerId           String           @unique @map("player_id")
+  status             EnrollmentStatus @default(ACTIVE)
+  /// AES-256-GCM package: v1:ivB64:tagB64:ctB64
+  authCodeCiphertext String           @map("auth_code_ciphertext")
+  authCodeLast4      String           @map("auth_code_last4")
+  knownShareCode     String           @map("known_share_code")
+  /// Cursor tip for GetNextMatchSharingCode (starts as anchor; only advances after enqueue).
+  lastShareCode      String           @map("last_share_code")
+  lastPolledAt       DateTime?        @map("last_polled_at")
+  lastError          String?          @map("last_error")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("match_history_enrollments")
+}
+
+/// Share codes discovered or manually submitted for a player. No row for the enrollment anchor alone.
+model MatchShareCode {
+  id         String   @id @default(uuid())
+  playerId   String   @map("player_id")
+  shareCode  String   @map("share_code")
+  jobId      String?  @unique @map("job_id")
+  discoveredAt DateTime @default(now()) @map("discovered_at")
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  job    Job?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@unique([playerId, shareCode])
+  @@index([playerId, jobId])
+  @@map("match_share_codes")
+}
+
+model Job {
+  id     String    @id @default(uuid())
+  type   String    @default("clip")
+  status JobStatus @default(PENDING)
+  source JobSource @default(manual)
+
+  // What the worker should do
+  payload Json
+
+  // Optional ownership (friends clip dashboard)
+  playerId  String? @map("player_id")
+  shareCode String? @map("share_code")
+
+  // Leasing / visibility timeout
+  leasedBy       String?   @map("leased_by")
+  leasedAt       DateTime? @map("leased_at")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+
+  attempts    Int @default(0)
+  maxAttempts Int @default(5)
+
+  // Progress reporting
+  progress Int     @default(0)
+  stage    String?
+  message  String?
+  result   Json?
+  error    String?
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
+
+  worker    Worker?         @relation(fields: [leasedBy], references: [id])
+  player    Player?         @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  shareCodeRow MatchShareCode?
+
+  @@index([status, leaseExpiresAt])
+  @@index([createdAt])
+  @@index([playerId])
+  @@index([playerId, shareCode])
+  @@index([source, status, createdAt])
+  @@map("jobs")
+}

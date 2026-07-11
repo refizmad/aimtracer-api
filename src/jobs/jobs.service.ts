@@ -1,0 +1,381 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { Job, JobSource, JobStatus, Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { normalizeShareCode } from '../common/sharecode.util';
+
+export interface LeaseResult {
+  job: Job | null;
+}
+
+@Injectable()
+export class JobsService {
+  private readonly visibilityTimeoutMs: number;
+  private readonly maxWaitMs: number;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {
+    const visibilitySec = this.config.get<number>('LEASE_VISIBILITY_TIMEOUT', 300);
+    this.visibilityTimeoutMs = visibilitySec * 1000;
+
+    const maxWaitSec = this.config.get<number>('MAX_LEASE_WAIT_SECONDS', 25);
+    this.maxWaitMs = maxWaitSec * 1000;
+  }
+
+  /**
+   * Core leasing logic using Postgres SELECT ... FOR UPDATE SKIP LOCKED.
+   * Handles both fresh pending jobs and expired leases (visibility timeout + retry).
+   */
+  async leaseNextJob(workerId: string): Promise<Job | null> {
+    const now = new Date();
+
+    // Opportunistic cleanup on every lease attempt (very cheap for low volume)
+    // In production you can also run this from a lightweight cron/scheduler.
+    if (Math.random() < 0.1) {
+      this.cleanupStaleLeases().catch(() => {});
+    }
+
+    // Atomic claim using CTE + FOR UPDATE SKIP LOCKED.
+    // Only consider jobs that still have attempts remaining.
+    // This + visibility-timeout + maxAttempts is your full lease/retry impl.
+    const result = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+      }>
+    >(Prisma.sql`
+      WITH candidate AS (
+        SELECT id
+        FROM "jobs"
+        WHERE 
+          attempts < "maxAttempts"
+          AND (
+            status = 'PENDING'
+            OR (
+              status = 'LEASED' 
+              AND "lease_expires_at" IS NOT NULL 
+              AND "lease_expires_at" < ${now}
+            )
+          )
+        ORDER BY "created_at" ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE "jobs" j
+      SET 
+        status = 'LEASED',
+        "leased_by" = ${workerId},
+        "leased_at" = ${now},
+        "lease_expires_at" = ${new Date(now.getTime() + this.visibilityTimeoutMs)},
+        attempts = attempts + 1,
+        "updated_at" = ${now}
+      FROM candidate
+      WHERE j.id = candidate.id
+      RETURNING j.id
+    `);
+
+    if (!result.length) {
+      return null;
+    }
+
+    // Fetch full job after update (to return complete object)
+    return this.prisma.job.findUnique({ where: { id: result[0].id } });
+  }
+
+  /**
+   * Long-poll wrapper. Worker can pass wait=30 to block up to ~30s.
+   */
+  async leaseJobWithWait(
+    workerId: string,
+    waitSeconds = 0,
+  ): Promise<Job | null> {
+    const start = Date.now();
+    const maxWait = Math.min(waitSeconds * 1000, this.maxWaitMs);
+    let job = await this.leaseNextJob(workerId);
+
+    if (job || maxWait <= 0) {
+      return job;
+    }
+
+    // Simple polling loop for long-poll (low volume, acceptable)
+    const pollInterval = 1200; // 1.2s
+    while (Date.now() - start < maxWait) {
+      await this.sleep(pollInterval);
+      job = await this.leaseNextJob(workerId);
+      if (job) return job;
+
+      // Also opportunistically release any fully expired leases that weren't picked
+      // (defensive; the next lease will catch them anyway)
+    }
+    return null;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async updateJobProgress(
+    jobId: string,
+    workerId: string,
+    dto: {
+      progress?: number;
+      stage?: string;
+      message?: string;
+      status?: 'PROCESSING' | 'COMPLETED' | 'FAILED';
+      result?: any;
+      error?: string;
+    },
+  ): Promise<Job> {
+    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    // Basic authorization: only the current lease holder (or allow if already completed)
+    const isLeaseHolder = job.leasedBy === workerId;
+    const leaseValid =
+      job.leaseExpiresAt && job.leaseExpiresAt.getTime() > Date.now();
+
+    if (!isLeaseHolder && job.status !== 'COMPLETED' && job.status !== 'FAILED') {
+      throw new BadRequestException('Not authorized to update this job (lease mismatch)');
+    }
+    if (isLeaseHolder && !leaseValid && job.status === 'LEASED') {
+      // Allow final report even if lease just lapsed (common for long renders)
+    }
+
+    const now = new Date();
+    const isTerminal = dto.status === 'COMPLETED' || dto.status === 'FAILED';
+
+    const data: Prisma.JobUpdateInput = {
+      progress: dto.progress ?? job.progress,
+      stage: dto.stage ?? job.stage,
+      message: dto.message ?? job.message,
+      result: dto.result !== undefined ? (dto.result as any) : job.result,
+      error: dto.error ?? job.error,
+      updatedAt: now,
+    };
+
+    if (dto.status) {
+      data.status = dto.status as JobStatus;
+    }
+
+    if (isTerminal) {
+      data.completedAt = now;
+      // Clear lease fields on terminal state.
+      // Use any-cast because of how Prisma generates optional relation/scalar fields in UpdateInput.
+      (data as any).leasedBy = null;
+      (data as any).leaseExpiresAt = null;
+      (data as any).leasedAt = null;
+    } else if (dto.status === 'PROCESSING' && job.status === 'LEASED') {
+      data.status = 'PROCESSING';
+    }
+
+    // Renew the lease on every non-terminal progress report by the lease holder.
+    // A render can run far longer than the visibility timeout while producing no
+    // output, so without this a worker's own heartbeats would let the lease
+    // lapse and cleanupStaleLeases could hand the job to another worker (double
+    // render). The worker heartbeats well under the timeout to keep it alive.
+    if (!isTerminal && isLeaseHolder) {
+      (data as any).leaseExpiresAt = new Date(now.getTime() + this.visibilityTimeoutMs);
+    }
+
+    return this.prisma.job.update({
+      where: { id: jobId },
+      data,
+    });
+  }
+
+  async createJob(data: {
+    type?: string;
+    payload: any;
+    maxAttempts?: number;
+  }): Promise<Job> {
+    return this.prisma.job.create({
+      data: {
+        type: data.type ?? 'clip',
+        payload: data.payload as Prisma.InputJsonValue,
+        maxAttempts: data.maxAttempts ?? 5,
+      },
+    });
+  }
+
+  /**
+   * Player-scoped create (manual UI). Forces trustedSteamIds to exactly [steamId64].
+   */
+  async createJobForPlayer(data: {
+    playerId: string;
+    steamId64: string;
+    shareCode: string;
+    type?: string;
+    options?: Record<string, unknown>;
+    maxAttempts?: number;
+  }): Promise<Job> {
+    const { job } = await this.enqueueClipForPlayer({
+      ...data,
+      source: JobSource.manual,
+    });
+    return job;
+  }
+
+  /**
+   * Unified enqueue for manual + auto. Idempotent on (playerId, shareCode).
+   * Always sets trustedSteamIds to exactly [steamId64] (never empty).
+   */
+  async enqueueClipForPlayer(data: {
+    playerId: string;
+    steamId64: string;
+    shareCode: string;
+    source: JobSource;
+    type?: string;
+    options?: Record<string, unknown>;
+    maxAttempts?: number;
+  }): Promise<{ job: Job; created: boolean }> {
+    if (!data.steamId64) {
+      throw new BadRequestException('steamId64 required');
+    }
+    const shareCode = normalizeShareCode(data.shareCode);
+    if (!shareCode) {
+      throw new BadRequestException('Invalid share code');
+    }
+
+    const existing = await this.prisma.matchShareCode.findUnique({
+      where: {
+        playerId_shareCode: { playerId: data.playerId, shareCode },
+      },
+      include: { job: true },
+    });
+
+    if (existing?.jobId && existing.job) {
+      return { job: existing.job, created: false };
+    }
+
+    const payload = {
+      shareCode,
+      trustedSteamIds: [data.steamId64],
+      options: data.options ?? { minKills: 4 },
+    };
+    if (!payload.trustedSteamIds.length) {
+      throw new BadRequestException('trustedSteamIds must be non-empty');
+    }
+
+    // Transaction: create job + upsert MatchShareCode with jobId
+    const job = await this.prisma.$transaction(async (tx) => {
+      // Re-check inside txn
+      const again = await tx.matchShareCode.findUnique({
+        where: {
+          playerId_shareCode: { playerId: data.playerId, shareCode },
+        },
+      });
+      if (again?.jobId) {
+        const j = await tx.job.findUnique({ where: { id: again.jobId } });
+        if (j) return j;
+      }
+
+      const created = await tx.job.create({
+        data: {
+          type: data.type ?? 'clip',
+          source: data.source,
+          playerId: data.playerId,
+          shareCode,
+          payload: payload as Prisma.InputJsonValue,
+          maxAttempts: data.maxAttempts ?? 5,
+        },
+      });
+
+      await tx.matchShareCode.upsert({
+        where: {
+          playerId_shareCode: { playerId: data.playerId, shareCode },
+        },
+        create: {
+          playerId: data.playerId,
+          shareCode,
+          jobId: created.id,
+        },
+        update: {
+          jobId: created.id,
+        },
+      });
+
+      return created;
+    });
+
+    const wasNew = !existing?.jobId;
+    return { job, created: wasNew };
+  }
+
+  async getJob(id: string): Promise<Job> {
+    const job = await this.prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundException('Job not found');
+    return job;
+  }
+
+  async listJobs(limit = 50): Promise<Job[]> {
+    return this.prisma.job.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  async listJobsForPlayer(playerId: string, limit = 50): Promise<Job[]> {
+    return this.prisma.job.findMany({
+      where: { playerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  async deleteJob(id: string): Promise<void> {
+    await this.prisma.job.delete({ where: { id } });
+  }
+
+  /**
+   * Periodic maintenance (call from a simple cron or on demand).
+   * Releases truly stuck leases and marks exhausted attempts as FAILED.
+   */
+  async cleanupStaleLeases(): Promise<{ released: number; failed: number }> {
+    const now = new Date();
+
+    // 1. Release leases that have truly expired (visibility timeout)
+    const released = await this.prisma.job.updateMany({
+      where: {
+        status: 'LEASED',
+        leaseExpiresAt: { lt: now },
+      },
+      data: {
+        status: 'PENDING',
+        leasedBy: null,
+        leasedAt: null,
+        leaseExpiresAt: null,
+      },
+    });
+
+    // 2. Mark jobs that have exhausted attempts as FAILED (two-step for Prisma safety)
+    const exhausted = await this.prisma.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`
+        SELECT id FROM "jobs"
+        WHERE attempts >= "maxAttempts"
+          AND status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
+        LIMIT 100
+      `,
+    );
+
+    let failedCount = 0;
+    if (exhausted.length > 0) {
+      const ids = exhausted.map((r: any) => r.id);
+      const res = await this.prisma.job.updateMany({
+        where: { id: { in: ids } },
+        data: {
+          status: 'FAILED',
+          error: 'Max attempts exceeded',
+          completedAt: now,
+        },
+      });
+      failedCount = res.count;
+    }
+
+    return { released: released.count, failed: failedCount };
+  }
+}
+
+
