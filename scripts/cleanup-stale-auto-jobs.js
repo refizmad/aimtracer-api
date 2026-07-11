@@ -21,7 +21,7 @@ async function main() {
     });
     cancelled += 1;
   }
-  const del = await p.matchShareCode.deleteMany({ where: { jobId: null } });
+  const del = await p.match.deleteMany({ where: { jobId: null } });
   console.log(
     JSON.stringify(
       {

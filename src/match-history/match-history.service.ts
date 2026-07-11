@@ -454,7 +454,7 @@ export class MatchHistoryService {
     const maxPages = numEnv(this.config, 'MATCH_HISTORY_MAX_PAGES', 15);
     let enqueued = 0;
 
-    // Do NOT re-enqueue historical MatchShareCode rows with null jobId.
+    // Do NOT re-enqueue historical Match rows with null jobId.
     // Those are skipped intermediates from baseline walks; recovering them
     // slowly re-queues month-old demos every poll tick.
 

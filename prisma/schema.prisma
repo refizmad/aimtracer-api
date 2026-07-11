@@ -33,6 +33,13 @@ enum JobSource {
   auto_match_history
 }
 
+enum MatchStatus {
+  DETECTED
+  DOWNLOADED
+  RENDERED
+  FAILED
+}
+
 model Worker {
   id           String    @id @default(uuid())
   name         String
@@ -60,7 +67,8 @@ model Player {
   inviteUsed Invite?                  @relation("InviteUsedBy")
   jobs       Job[]
   enrollment MatchHistoryEnrollment?
-  shareCodes MatchShareCode[]
+  matches    Match[]
+  clips      Clip[]
 
   @@map("players")
 }
@@ -128,20 +136,74 @@ model MatchHistoryEnrollment {
   @@map("match_history_enrollments")
 }
 
-/// Share codes discovered or manually submitted for a player. No row for the enrollment anchor alone.
-model MatchShareCode {
-  id         String   @id @default(uuid())
-  playerId   String   @map("player_id")
-  shareCode  String   @map("share_code")
-  jobId      String?  @unique @map("job_id")
-  discoveredAt DateTime @default(now()) @map("discovered_at")
+/// A player's match, keyed by share code. Evolved from MatchShareCode: still
+/// the discovery/dedup row (no row for the enrollment anchor alone), now also
+/// the first-class dashboard entity with lifecycle status and demo metadata.
+model Match {
+  id           String      @id @default(uuid())
+  playerId     String      @map("player_id")
+  shareCode    String      @map("share_code")
+  status       MatchStatus @default(DETECTED)
+  /// Map name (e.g. de_mirage); learned from the first ingested clip.
+  map          String?
+  demoName     String?     @map("demo_name")
+  /// Best-known match time. Discovery/submission time for now; a better
+  /// source (demo header) can overwrite it later.
+  matchDate    DateTime    @map("match_date")
+  jobId        String?     @unique @map("job_id")
+  discoveredAt DateTime    @default(now()) @map("discovered_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   job    Job?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  clips  Clip[]
 
   @@unique([playerId, shareCode])
   @@index([playerId, jobId])
-  @@map("match_share_codes")
+  @@index([playerId, status])
+  @@map("matches")
+}
+
+/// A rendered highlight clip, ingested from a worker's COMPLETED job result
+/// (metadata originates in the clipper's <clip>.json sidecars).
+model Clip {
+  id            String   @id @default(uuid())
+  playerId      String?  @map("player_id")
+  matchId       String?  @map("match_id")
+  jobId         String?  @map("job_id")
+  /// mp4 basename -- also the S3 object key and the manifest's dedup key,
+  /// which is why it is globally unique (a re-render overwrites in S3 too).
+  file          String   @unique
+  url           String?
+  sizeBytes     Int?     @map("size_bytes")
+  /// Sidecar "type": e.g. 2k/3k/4k/ace/clutch (moment type).
+  clipType      String?  @map("clip_type")
+  map           String?
+  round         Int?
+  kills         Int?
+  headshots     Int?
+  score         Int?
+  durationS     Float?   @map("duration_s")
+  specials      Json?
+  clutch        Json?
+  killEvents    Json?    @map("kill_events")
+  /// Player display name at render time (names are spoofable; steamid is truth).
+  playerName    String?  @map("player_name")
+  playerSteamId String?  @map("player_steamid")
+  demoName      String?  @map("demo_name")
+  reason        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  match  Match?  @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  job    Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([playerId, createdAt])
+  @@index([matchId])
+  @@index([kills])
+  @@index([clipType])
+  @@map("clips")
 }
 
 model Job {
@@ -178,7 +240,8 @@ model Job {
 
   worker    Worker?         @relation(fields: [leasedBy], references: [id])
   player    Player?         @relation(fields: [playerId], references: [id], onDelete: SetNull)
-  shareCodeRow MatchShareCode?
+  match     Match?
+  clips     Clip[]
 
   @@index([status, leaseExpiresAt])
   @@index([createdAt])

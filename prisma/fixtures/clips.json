@@ -1,0 +1,1361 @@
+[
+  {
+    "file": "Adek_2k_inferno_003.mp4",
+    "demo": "match_3830643191992812129.dem",
+    "clip_id": "clip_003",
+    "type": "2k",
+    "map": "de_inferno",
+    "player": "Adek",
+    "player_steamid": "76561198119019050",
+    "round": 8,
+    "kills": 2,
+    "headshots": 2,
+    "specials": {},
+    "clutch": null,
+    "score": 146,
+    "reason": "requested via !clip,!klip: 2 kills in round 8, 2 hs, 2 segment(s)",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 25448,
+    "end_tick": 27667,
+    "kill_events": [
+      {
+        "tick": 25544,
+        "victim": "Vergn\u00fcgen",
+        "weapon": "glock",
+        "headshot": true
+      },
+      {
+        "tick": 27603,
+        "victim": "DMS_kloaChristoph",
+        "weapon": "glock",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/Adek_2k_inferno_003.mp4"
+  },
+  {
+    "file": "Adek_2k_inferno_004.mp4",
+    "demo": "match_3830643191992812129.dem",
+    "clip_id": "clip_004",
+    "type": "2k",
+    "map": "de_inferno",
+    "player": "Adek",
+    "player_steamid": "76561198119019050",
+    "round": 3,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {},
+    "clutch": null,
+    "score": 138,
+    "reason": "requested via !clip,!klip: 2 kills in round 3, 1 hs, 1 segment(s)",
+    "duration_s": 6.36,
+    "fps": 60,
+    "start_tick": 9049,
+    "end_tick": 9456,
+    "kill_events": [
+      {
+        "tick": 9145,
+        "victim": "DMS_kloaChristoph",
+        "weapon": "m4a1",
+        "headshot": true
+      },
+      {
+        "tick": 9392,
+        "victim": "Vergn\u00fcgen",
+        "weapon": "m4a1",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/Adek_2k_inferno_004.mp4"
+  },
+  {
+    "file": "Adek_2k_inferno_005.mp4",
+    "demo": "match_3830643191992812129.dem",
+    "clip_id": "clip_005",
+    "type": "2k",
+    "map": "de_inferno",
+    "player": "Adek",
+    "player_steamid": "76561198119019050",
+    "round": 5,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {},
+    "clutch": null,
+    "score": 138,
+    "reason": "requested via !clip,!klip: 2 kills in round 5, 1 hs, 2 segment(s)",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 16392,
+    "end_tick": 18474,
+    "kill_events": [
+      {
+        "tick": 16488,
+        "victim": "DMS_kloaChristoph",
+        "weapon": "m4a1",
+        "headshot": true
+      },
+      {
+        "tick": 18410,
+        "victim": "Vergn\u00fcgen",
+        "weapon": "m4a1",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/Adek_2k_inferno_005.mp4"
+  },
+  {
+    "file": "DR_HOUSE_2k_nuke_004.mp4",
+    "demo": "match_3830301853761929489.dem",
+    "clip_id": "clip_004",
+    "type": "2k",
+    "map": "de_nuke",
+    "player": "DR HOUSE",
+    "player_steamid": "76561199196086356",
+    "round": 10,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 2,
+    "score": 110,
+    "reason": "1v2 clutch in round 10",
+    "duration_s": 4.08,
+    "fps": 60,
+    "start_tick": 47410,
+    "end_tick": 47671,
+    "kill_events": [
+      {
+        "tick": 47506,
+        "victim": "G\u00fcl\u00fczar Do\u011framac\u0131",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      },
+      {
+        "tick": 47607,
+        "victim": "Wachin Detectado",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/DR_HOUSE_2k_nuke_004.mp4"
+  },
+  {
+    "file": "DR_HOUSE_3k_boulder_001.mp4",
+    "demo": "match_3830154697444950580.dem",
+    "clip_id": "clip_001",
+    "type": "3k",
+    "map": "de_boulder",
+    "player": "DR HOUSE",
+    "player_steamid": "76561199196086356",
+    "round": 15,
+    "kills": 3,
+    "headshots": 1,
+    "specials": {},
+    "clutch": 3,
+    "score": 148,
+    "reason": "1v3 clutch in round 15, 1 hs",
+    "duration_s": 11.67,
+    "fps": 60,
+    "start_tick": 93095,
+    "end_tick": 96161,
+    "kill_events": [
+      {
+        "tick": 93191,
+        "victim": "to",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      },
+      {
+        "tick": 93522,
+        "victim": "Lyan",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      },
+      {
+        "tick": 96001,
+        "victim": "BalouLeKangourou",
+        "weapon": "ak47",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/DR_HOUSE_3k_boulder_001.mp4"
+  },
+  {
+    "file": "Peugeot_205_GTI_2k_boulder_002.mp4",
+    "demo": "match_3830266276400333115.dem",
+    "clip_id": "clip_002",
+    "type": "2k",
+    "map": "de_boulder",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 14,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 2,
+    "score": 110,
+    "reason": "1v2 clutch in round 14",
+    "duration_s": 8.0,
+    "fps": 60,
+    "start_tick": 73271,
+    "end_tick": 78139,
+    "kill_events": [
+      {
+        "tick": 73367,
+        "victim": "[DTV] MAybe",
+        "weapon": "xm1014",
+        "headshot": false
+      },
+      {
+        "tick": 77979,
+        "victim": "Haze",
+        "weapon": "knife",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/Peugeot_205_GTI_2k_boulder_002.mp4"
+  },
+  {
+    "file": "Peugeot_205_GTI_2k_nuke_003.mp4",
+    "demo": "match_3830301853761929489.dem",
+    "clip_id": "clip_003",
+    "type": "2k",
+    "map": "de_nuke",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 11,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {},
+    "clutch": 2,
+    "score": 123,
+    "reason": "1v2 clutch in round 11, 1 hs",
+    "duration_s": 8.0,
+    "fps": 60,
+    "start_tick": 51254,
+    "end_tick": 52406,
+    "kill_events": [
+      {
+        "tick": 51350,
+        "victim": "Gabel",
+        "weapon": "fiveseven",
+        "headshot": true
+      },
+      {
+        "tick": 52246,
+        "victim": "Alexis The Great",
+        "weapon": "awp",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/Peugeot_205_GTI_2k_nuke_003.mp4"
+  },
+  {
+    "file": "Peugeot_205_GTI_3k_boulder_001.mp4",
+    "demo": "match_3830266276400333115.dem",
+    "clip_id": "clip_001",
+    "type": "3k",
+    "map": "de_boulder",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 16,
+    "kills": 3,
+    "headshots": 2,
+    "specials": {},
+    "clutch": null,
+    "score": 176,
+    "reason": "requested via !clip,!klip: 3 kills in round 16, 2 hs, 1 segment(s)",
+    "duration_s": 7.59,
+    "fps": 60,
+    "start_tick": 90345,
+    "end_tick": 90831,
+    "kill_events": [
+      {
+        "tick": 90441,
+        "victim": "@mcpofficial",
+        "weapon": "m4a1",
+        "headshot": false
+      },
+      {
+        "tick": 90644,
+        "victim": "Haze",
+        "weapon": "m4a1",
+        "headshot": true
+      },
+      {
+        "tick": 90767,
+        "victim": "its'j0eee",
+        "weapon": "m4a1",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/Peugeot_205_GTI_3k_boulder_001.mp4"
+  },
+  {
+    "file": "Peugeot_205_GTI_ace_nuke_001.mp4",
+    "demo": "match_3830301853761929489.dem",
+    "clip_id": "clip_001",
+    "type": "ace",
+    "map": "de_nuke",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 2,
+    "kills": 5,
+    "headshots": 3,
+    "specials": {},
+    "clutch": null,
+    "score": 164,
+    "reason": "5 kills in round 2, 3 hs, 1 segment(s)",
+    "duration_s": 18.44,
+    "fps": 60,
+    "start_tick": 10046,
+    "end_tick": 11226,
+    "kill_events": [
+      {
+        "tick": 10142,
+        "victim": "Gabel",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      },
+      {
+        "tick": 10222,
+        "victim": "Tekatoyuu",
+        "weapon": "m4a1_silencer",
+        "headshot": true
+      },
+      {
+        "tick": 10291,
+        "victim": "G\u00fcl\u00fczar Do\u011framac\u0131",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      },
+      {
+        "tick": 10629,
+        "victim": "Wachin Detectado",
+        "weapon": "ak47",
+        "headshot": true
+      },
+      {
+        "tick": 11162,
+        "victim": "Alexis The Great",
+        "weapon": "ak47",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/Peugeot_205_GTI_ace_nuke_001.mp4"
+  },
+  {
+    "file": "clip_001_DR_HOUSE_3k.mp4",
+    "demo": "match_3830154697444950580.dem",
+    "clip_id": "clip_001",
+    "type": "3k",
+    "player": "DR HOUSE",
+    "player_steamid": "76561199196086356",
+    "round": 15,
+    "kills": 3,
+    "headshots": 1,
+    "specials": {},
+    "clutch": 3,
+    "score": 148,
+    "reason": "1v3 clutch in round 15, 1 hs",
+    "duration_s": 11.67,
+    "fps": 60,
+    "start_tick": 93095,
+    "end_tick": 96161,
+    "kill_events": [
+      {
+        "tick": 93191,
+        "victim": "to",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      },
+      {
+        "tick": 93522,
+        "victim": "Lyan",
+        "weapon": "m4a1_silencer",
+        "headshot": false
+      },
+      {
+        "tick": 96001,
+        "victim": "BalouLeKangourou",
+        "weapon": "ak47",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_001_DR_HOUSE_3k.mp4"
+  },
+  {
+    "file": "clip_001_Peugeot_205_GTI_4k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_001",
+    "type": "4k",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 19,
+    "kills": 4,
+    "headshots": 3,
+    "specials": {},
+    "clutch": null,
+    "score": 219,
+    "reason": "requested via !clip,!klip: 4 kills in round 19, 3 hs, 2 segment(s)",
+    "duration_s": 16.77,
+    "fps": 60,
+    "start_tick": 108275,
+    "end_tick": 110510,
+    "kill_events": [
+      {
+        "tick": 108371,
+        "victim": "\u30ab\u30ab\u30ed\u30c3\u30c8",
+        "weapon": "tec9",
+        "headshot": false
+      },
+      {
+        "tick": 108886,
+        "victim": "-JordiENP-",
+        "weapon": "ak47",
+        "headshot": true
+      },
+      {
+        "tick": 110208,
+        "victim": "C.I.A spy",
+        "weapon": "ak47",
+        "headshot": true
+      },
+      {
+        "tick": 110446,
+        "victim": "Ryuga",
+        "weapon": "ak47",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_001_Peugeot_205_GTI_4k.mp4"
+  },
+  {
+    "file": "clip_001_refi_2k.mp4",
+    "demo": "match_3830143777490600265.dem",
+    "clip_id": "clip_001",
+    "type": "2k",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 5,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {},
+    "clutch": 2,
+    "score": 118,
+    "reason": "1v2 clutch in round 5, 1 hs",
+    "duration_s": 4.94,
+    "fps": 60,
+    "start_tick": 44434,
+    "end_tick": 44750,
+    "kill_events": [
+      {
+        "tick": 44530,
+        "victim": "A posse ad esse",
+        "weapon": "hegrenade",
+        "headshot": false
+      },
+      {
+        "tick": 44686,
+        "victim": "KOBRA CANER",
+        "weapon": "m4a1",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_001_refi_2k.mp4"
+  },
+  {
+    "file": "clip_002_Peugeot_205_GTI_3k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_002",
+    "type": "3k",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 0,
+    "kills": 3,
+    "headshots": 3,
+    "specials": {},
+    "clutch": null,
+    "score": 184,
+    "reason": "requested via !clip,!klip: 3 kills in round 0, 3 hs, 1 segment(s)",
+    "duration_s": 14.25,
+    "fps": 60,
+    "start_tick": 3526,
+    "end_tick": 4438,
+    "kill_events": [
+      {
+        "tick": 3622,
+        "victim": "Ryuga",
+        "weapon": "usp_silencer",
+        "headshot": true
+      },
+      {
+        "tick": 3903,
+        "victim": "-JordiENP-",
+        "weapon": "usp_silencer",
+        "headshot": true
+      },
+      {
+        "tick": 4374,
+        "victim": "C.I.A spy",
+        "weapon": "usp_silencer",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_002_Peugeot_205_GTI_3k.mp4"
+  },
+  {
+    "file": "clip_002_Peugeot_205_GTI_4k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_002",
+    "type": "4k",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 19,
+    "kills": 4,
+    "headshots": 3,
+    "specials": {},
+    "clutch": null,
+    "score": 219,
+    "reason": "requested via !clip,!klip: 4 kills in round 19, 3 hs, 2 segment(s)",
+    "duration_s": 16.77,
+    "fps": 60,
+    "start_tick": 108275,
+    "end_tick": 110510,
+    "kill_events": [
+      {
+        "tick": 108371,
+        "victim": "\u30ab\u30ab\u30ed\u30c3\u30c8",
+        "weapon": "tec9",
+        "headshot": false
+      },
+      {
+        "tick": 108886,
+        "victim": "-JordiENP-",
+        "weapon": "ak47",
+        "headshot": true
+      },
+      {
+        "tick": 110208,
+        "victim": "C.I.A spy",
+        "weapon": "ak47",
+        "headshot": true
+      },
+      {
+        "tick": 110446,
+        "victim": "Ryuga",
+        "weapon": "ak47",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_002_Peugeot_205_GTI_4k.mp4"
+  },
+  {
+    "file": "clip_002_refi_2k.mp4",
+    "demo": "match_3830154697444950580.dem",
+    "clip_id": "clip_002",
+    "type": "2k",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 7,
+    "kills": 2,
+    "headshots": 2,
+    "specials": {},
+    "clutch": 2,
+    "score": 126,
+    "reason": "1v2 clutch in round 7, 2 hs",
+    "duration_s": 3.94,
+    "fps": 60,
+    "start_tick": 49036,
+    "end_tick": 49288,
+    "kill_events": [
+      {
+        "tick": 49132,
+        "victim": "to",
+        "weapon": "deagle",
+        "headshot": true
+      },
+      {
+        "tick": 49224,
+        "victim": "Lyan",
+        "weapon": "deagle",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_002_refi_2k.mp4"
+  },
+  {
+    "file": "clip_003_Peugeot_205_GTI_2k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_003",
+    "type": "2k",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 12,
+    "kills": 2,
+    "headshots": 2,
+    "specials": {},
+    "clutch": null,
+    "score": 146,
+    "reason": "requested via !clip,!klip: 2 kills in round 12, 2 hs, 1 segment(s)",
+    "duration_s": 4.0,
+    "fps": 60,
+    "start_tick": 72973,
+    "end_tick": 73229,
+    "kill_events": [
+      {
+        "tick": 73069,
+        "victim": "\u30ab\u30ab\u30ed\u30c3\u30c8",
+        "weapon": "glock",
+        "headshot": true
+      },
+      {
+        "tick": 73118,
+        "victim": "Wizza \u30c5",
+        "weapon": "glock",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_003_Peugeot_205_GTI_2k.mp4"
+  },
+  {
+    "file": "clip_003_refi_2k.mp4",
+    "demo": "match_3830154697444950580.dem",
+    "clip_id": "clip_003",
+    "type": "2k",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 12,
+    "kills": 2,
+    "headshots": 2,
+    "specials": {},
+    "clutch": 2,
+    "score": 126,
+    "reason": "1v2 clutch in round 12, 2 hs",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 76166,
+    "end_tick": 77606,
+    "kill_events": [
+      {
+        "tick": 76262,
+        "victim": "BalouLeKangourou",
+        "weapon": "elite",
+        "headshot": true
+      },
+      {
+        "tick": 77542,
+        "victim": "to",
+        "weapon": "elite",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_003_refi_2k.mp4"
+  },
+  {
+    "file": "clip_004_DR_HOUSE_2k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_004",
+    "type": "2k",
+    "player": "DR HOUSE",
+    "player_steamid": "76561199196086356",
+    "round": 11,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {},
+    "clutch": null,
+    "score": 143,
+    "reason": "requested via !clip,!klip: 2 kills in round 11, 1 hs, 2 segment(s)",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 67648,
+    "end_tick": 69228,
+    "kill_events": [
+      {
+        "tick": 67744,
+        "victim": "-JordiENP-",
+        "weapon": "awp",
+        "headshot": false
+      },
+      {
+        "tick": 69164,
+        "victim": "Ryuga",
+        "weapon": "ak47",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_004_DR_HOUSE_2k.mp4"
+  },
+  {
+    "file": "clip_004_refi_4k.mp4",
+    "demo": "match_3830154697444950580.dem",
+    "clip_id": "clip_004",
+    "type": "4k",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 17,
+    "kills": 4,
+    "headshots": 1,
+    "specials": {
+      "wallbang": 1
+    },
+    "clutch": null,
+    "score": 123,
+    "reason": "4 kills in round 17, 1 hs, 1 wallbang, 2 segment(s)",
+    "duration_s": 19.22,
+    "fps": 60,
+    "start_tick": 104374,
+    "end_tick": 107631,
+    "kill_events": [
+      {
+        "tick": 104470,
+        "victim": "Artanior",
+        "weapon": "mag7",
+        "headshot": false
+      },
+      {
+        "tick": 104918,
+        "victim": "Lyan",
+        "weapon": "ak47",
+        "headshot": true
+      },
+      {
+        "tick": 105380,
+        "victim": "BalouLeKangourou",
+        "weapon": "ak47",
+        "headshot": false,
+        "wallbang": true
+      },
+      {
+        "tick": 107567,
+        "victim": "to",
+        "weapon": "ak47",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_004_refi_4k.mp4"
+  },
+  {
+    "file": "clip_005_refi_2k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_005",
+    "type": "2k",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 7,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": null,
+    "score": 140,
+    "reason": "requested via !clip,!klip: 2 kills in round 7, 0 hs, 2 segment(s)",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 38232,
+    "end_tick": 42163,
+    "kill_events": [
+      {
+        "tick": 38328,
+        "victim": "Ryuga",
+        "weapon": "awp",
+        "headshot": false
+      },
+      {
+        "tick": 42099,
+        "victim": "\u30ab\u30ab\u30ed\u30c3\u30c8",
+        "weapon": "awp",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_005_refi_2k.mp4"
+  },
+  {
+    "file": "clip_006_DR_HOUSE_2k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_006",
+    "type": "2k",
+    "player": "DR HOUSE",
+    "player_steamid": "76561199196086356",
+    "round": 7,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": null,
+    "score": 140,
+    "reason": "requested via !clip,!klip: 2 kills in round 7, 0 hs, 2 segment(s)",
+    "duration_s": 8.0,
+    "fps": 60,
+    "start_tick": 37870,
+    "end_tick": 42149,
+    "kill_events": [
+      {
+        "tick": 37966,
+        "victim": "Wizza \u30c5",
+        "weapon": "awp",
+        "headshot": false
+      },
+      {
+        "tick": 41989,
+        "victim": "C.I.A spy",
+        "weapon": "awp",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_006_DR_HOUSE_2k.mp4"
+  },
+  {
+    "file": "clip_007_refi_2k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_007",
+    "type": "2k",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 8,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 2,
+    "score": 120,
+    "reason": "1v2 clutch in round 8",
+    "duration_s": 8.94,
+    "fps": 60,
+    "start_tick": 48135,
+    "end_tick": 48707,
+    "kill_events": [
+      {
+        "tick": 48231,
+        "victim": "C.I.A spy",
+        "weapon": "awp",
+        "headshot": false
+      },
+      {
+        "tick": 48643,
+        "victim": "Ryuga",
+        "weapon": "awp",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_007_refi_2k.mp4"
+  },
+  {
+    "file": "clip_008_Peugeot_205_GTI_2k.mp4",
+    "demo": "match_3830136005747278331.dem",
+    "clip_id": "clip_008",
+    "type": "2k",
+    "player": "Peugeot 205 GTI",
+    "player_steamid": "76561199872647015",
+    "round": 1,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 2,
+    "score": 110,
+    "reason": "1v2 clutch in round 1",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 9445,
+    "end_tick": 11124,
+    "kill_events": [
+      {
+        "tick": 9541,
+        "victim": "C.I.A spy",
+        "weapon": "mp9",
+        "headshot": false
+      },
+      {
+        "tick": 11060,
+        "victim": "Wizza \u30c5",
+        "weapon": "mp9",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/clip_008_Peugeot_205_GTI_2k.mp4"
+  },
+  {
+    "file": "refi_2k_cache_002.mp4",
+    "demo": "match_3830270719544000618.dem",
+    "clip_id": "clip_002",
+    "type": "2k",
+    "map": "de_cache",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 14,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 2,
+    "score": 120,
+    "reason": "1v2 clutch in round 14",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 90479,
+    "end_tick": 92048,
+    "kill_events": [
+      {
+        "tick": 90575,
+        "victim": "pasquda",
+        "weapon": "awp",
+        "headshot": false
+      },
+      {
+        "tick": 91984,
+        "victim": "Trekz",
+        "weapon": "awp",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_cache_002.mp4"
+  },
+  {
+    "file": "refi_2k_cache_003.mp4",
+    "demo": "match_3830270719544000618.dem",
+    "clip_id": "clip_003",
+    "type": "2k",
+    "map": "de_cache",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 17,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 2,
+    "score": 120,
+    "reason": "1v2 clutch in round 17",
+    "duration_s": 6.5,
+    "fps": 60,
+    "start_tick": 106283,
+    "end_tick": 107397,
+    "kill_events": [
+      {
+        "tick": 106379,
+        "victim": "CHEESY",
+        "weapon": "awp",
+        "headshot": false
+      },
+      {
+        "tick": 107333,
+        "victim": "Wilson lo Siento",
+        "weapon": "awp",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_cache_003.mp4"
+  },
+  {
+    "file": "refi_2k_dust2_003.mp4",
+    "demo": "match_3830310164523646983.dem",
+    "clip_id": "clip_003",
+    "type": "2k",
+    "map": "de_dust2",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 0,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 2,
+    "score": 110,
+    "reason": "1v2 clutch in round 0",
+    "duration_s": 13.41,
+    "fps": 60,
+    "start_tick": 6028,
+    "end_tick": 6886,
+    "kill_events": [
+      {
+        "tick": 6124,
+        "victim": "NIGG!LER",
+        "weapon": "glock",
+        "headshot": false
+      },
+      {
+        "tick": 6822,
+        "victim": "interoff",
+        "weapon": "knife_butterfly",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_dust2_003.mp4"
+  },
+  {
+    "file": "refi_2k_fachwerk_001.mp4",
+    "demo": "match_3830261861173953009.dem",
+    "clip_id": "clip_001",
+    "type": "2k",
+    "map": "de_fachwerk",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 0,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {
+      "wallbang": 1
+    },
+    "clutch": null,
+    "score": 158,
+    "reason": "requested via !clip,!klip: 2 kills in round 0, 1 hs, 1 segment(s)",
+    "duration_s": 4.0,
+    "fps": 60,
+    "start_tick": 4101,
+    "end_tick": 4357,
+    "kill_events": [
+      {
+        "tick": 4197,
+        "victim": "SuDDenLife\u262f",
+        "weapon": "usp_silencer",
+        "headshot": true
+      },
+      {
+        "tick": 4197,
+        "victim": "MrLova",
+        "weapon": "usp_silencer",
+        "headshot": false,
+        "wallbang": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_fachwerk_001.mp4"
+  },
+  {
+    "file": "refi_2k_inferno_001.mp4",
+    "demo": "match_3830643191992812129.dem",
+    "clip_id": "clip_001",
+    "type": "2k",
+    "map": "de_inferno",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 0,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {
+      "wallbang": 1
+    },
+    "clutch": null,
+    "score": 158,
+    "reason": "requested via !clip,!klip: 2 kills in round 0, 1 hs, 1 segment(s)",
+    "duration_s": 4.52,
+    "fps": 60,
+    "start_tick": 2083,
+    "end_tick": 2372,
+    "kill_events": [
+      {
+        "tick": 2179,
+        "victim": "Vergn\u00fcgen",
+        "weapon": "elite",
+        "headshot": true
+      },
+      {
+        "tick": 2308,
+        "victim": "DMS_kloaChristoph",
+        "weapon": "elite",
+        "headshot": false,
+        "wallbang": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_inferno_001.mp4"
+  },
+  {
+    "file": "refi_2k_inferno_002.mp4",
+    "demo": "match_3830643191992812129.dem",
+    "clip_id": "clip_002",
+    "type": "2k",
+    "map": "de_inferno",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 2,
+    "kills": 2,
+    "headshots": 2,
+    "specials": {},
+    "clutch": null,
+    "score": 146,
+    "reason": "requested via !clip,!klip: 2 kills in round 2, 2 hs, 1 segment(s)",
+    "duration_s": 3.77,
+    "fps": 60,
+    "start_tick": 6544,
+    "end_tick": 6785,
+    "kill_events": [
+      {
+        "tick": 6640,
+        "victim": "Vergn\u00fcgen",
+        "weapon": "mag7",
+        "headshot": true
+      },
+      {
+        "tick": 6721,
+        "victim": "DMS_kloaChristoph",
+        "weapon": "mag7",
+        "headshot": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_inferno_002.mp4"
+  },
+  {
+    "file": "refi_2k_inferno_003.mp4",
+    "demo": "match_3830643191992812129.dem",
+    "clip_id": "clip_003",
+    "type": "2k",
+    "map": "de_inferno",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 7,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {},
+    "clutch": null,
+    "score": 138,
+    "reason": "requested via !clip,!klip: 2 kills in round 7, 1 hs, 1 segment(s)",
+    "duration_s": 5.05,
+    "fps": 60,
+    "start_tick": 23352,
+    "end_tick": 23675,
+    "kill_events": [
+      {
+        "tick": 23448,
+        "victim": "DMS_kloaChristoph",
+        "weapon": "mag7",
+        "headshot": true
+      },
+      {
+        "tick": 23611,
+        "victim": "Vergn\u00fcgen",
+        "weapon": "mag7",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_inferno_003.mp4"
+  },
+  {
+    "file": "refi_2k_inferno_006.mp4",
+    "demo": "match_3830643191992812129.dem",
+    "clip_id": "clip_006",
+    "type": "2k",
+    "map": "de_inferno",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 7,
+    "kills": 2,
+    "headshots": 1,
+    "specials": {},
+    "clutch": null,
+    "score": 138,
+    "reason": "requested via !clip,!klip: 2 kills in round 7, 1 hs, 1 segment(s)",
+    "duration_s": 5.05,
+    "fps": 60,
+    "start_tick": 23352,
+    "end_tick": 23675,
+    "kill_events": [
+      {
+        "tick": 23448,
+        "victim": "DMS_kloaChristoph",
+        "weapon": "mag7",
+        "headshot": true
+      },
+      {
+        "tick": 23611,
+        "victim": "Vergn\u00fcgen",
+        "weapon": "mag7",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_inferno_006.mp4"
+  },
+  {
+    "file": "refi_2k_nuke_002.mp4",
+    "demo": "match_3830301853761929489.dem",
+    "clip_id": "clip_002",
+    "type": "2k",
+    "map": "de_nuke",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 6,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {
+      "noscope": 2
+    },
+    "clutch": 2,
+    "score": 160,
+    "reason": "1v2 clutch in round 6, 2 no-scope",
+    "duration_s": 4.38,
+    "fps": 60,
+    "start_tick": 25751,
+    "end_tick": 26031,
+    "kill_events": [
+      {
+        "tick": 25847,
+        "victim": "Gabel",
+        "weapon": "ssg08",
+        "headshot": false,
+        "noscope": true
+      },
+      {
+        "tick": 25967,
+        "victim": "Alexis The Great",
+        "weapon": "ssg08",
+        "headshot": false,
+        "noscope": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_nuke_002.mp4"
+  },
+  {
+    "file": "refi_2k_nuke_005.mp4",
+    "demo": "match_3830301853761929489.dem",
+    "clip_id": "clip_005",
+    "type": "2k",
+    "map": "de_nuke",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 10,
+    "kills": 2,
+    "headshots": 0,
+    "specials": {
+      "smoke": 2
+    },
+    "clutch": null,
+    "score": 70,
+    "reason": "2 kills in round 10, 2 smoke-kill, 1 segment(s)",
+    "duration_s": 7.08,
+    "fps": 60,
+    "start_tick": 43561,
+    "end_tick": 44014,
+    "kill_events": [
+      {
+        "tick": 43657,
+        "victim": "Gabel",
+        "weapon": "awp",
+        "headshot": false,
+        "smoke": true
+      },
+      {
+        "tick": 43950,
+        "victim": "Alexis The Great",
+        "weapon": "awp",
+        "headshot": false,
+        "smoke": true
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_2k_nuke_005.mp4"
+  },
+  {
+    "file": "refi_3k_cache_001.mp4",
+    "demo": "match_3830270719544000618.dem",
+    "clip_id": "clip_001",
+    "type": "3k",
+    "map": "de_cache",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 11,
+    "kills": 3,
+    "headshots": 1,
+    "specials": {},
+    "clutch": null,
+    "score": 168,
+    "reason": "requested via !clip,!klip: 3 kills in round 11, 1 hs, 1 segment(s)",
+    "duration_s": 9.14,
+    "fps": 60,
+    "start_tick": 73793,
+    "end_tick": 74378,
+    "kill_events": [
+      {
+        "tick": 73889,
+        "victim": "GoyimGaming271000",
+        "weapon": "ak47",
+        "headshot": false
+      },
+      {
+        "tick": 74094,
+        "victim": "Wilson lo Siento",
+        "weapon": "ak47",
+        "headshot": true
+      },
+      {
+        "tick": 74314,
+        "victim": "pasquda",
+        "weapon": "ak47",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_3k_cache_001.mp4"
+  },
+  {
+    "file": "refi_3k_dust2_001.mp4",
+    "demo": "match_3830310164523646983.dem",
+    "clip_id": "clip_001",
+    "type": "3k",
+    "map": "de_dust2",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 17,
+    "kills": 3,
+    "headshots": 1,
+    "specials": {},
+    "clutch": 3,
+    "score": 148,
+    "reason": "1v3 clutch in round 17, 1 hs",
+    "duration_s": 10.5,
+    "fps": 60,
+    "start_tick": 112224,
+    "end_tick": 115621,
+    "kill_events": [
+      {
+        "tick": 112320,
+        "victim": "interoff",
+        "weapon": "m4a1",
+        "headshot": true
+      },
+      {
+        "tick": 113700,
+        "victim": "143+52+13",
+        "weapon": "m4a1",
+        "headshot": false
+      },
+      {
+        "tick": 115557,
+        "victim": "cwrd \u2708",
+        "weapon": "m4a1",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_3k_dust2_001.mp4"
+  },
+  {
+    "file": "refi_3k_dust2_002.mp4",
+    "demo": "match_3830310164523646983.dem",
+    "clip_id": "clip_002",
+    "type": "3k",
+    "map": "de_dust2",
+    "player": "refi",
+    "player_steamid": "76561199101412336",
+    "round": 10,
+    "kills": 3,
+    "headshots": 0,
+    "specials": {},
+    "clutch": 3,
+    "score": 140,
+    "reason": "1v3 clutch in round 10",
+    "duration_s": 6.05,
+    "fps": 60,
+    "start_tick": 63905,
+    "end_tick": 64292,
+    "kill_events": [
+      {
+        "tick": 64001,
+        "victim": "NIGG!LER",
+        "weapon": "ak47",
+        "headshot": false
+      },
+      {
+        "tick": 64127,
+        "victim": "143+52+13",
+        "weapon": "ak47",
+        "headshot": false
+      },
+      {
+        "tick": 64228,
+        "victim": "CyTaX",
+        "weapon": "ak47",
+        "headshot": false
+      }
+    ],
+    "url": "https://s3.eu-central-1.idrivee2.com/aimtracer-clips/clips/refi_3k_dust2_002.mp4"
+  }
+]

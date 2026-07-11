@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Job, JobSource, JobStatus, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { normalizeShareCode } from '../common/sharecode.util';
+import { ClipsService } from '../clips/clips.service';
+
+/** Worker stages that imply the demo reached the render box (anything past
+ * download). Keep in sync with cs2-clip worker.py STAGE_MARKERS. */
+const STAGES_PAST_DOWNLOAD = new Set(['parse', 'render', 'encode', 'upload', 'done']);
 
 export interface LeaseResult {
   job: Job | null;
@@ -13,9 +18,12 @@ export class JobsService {
   private readonly visibilityTimeoutMs: number;
   private readonly maxWaitMs: number;
 
+  private readonly logger = new Logger(JobsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly clips: ClipsService,
   ) {
     const visibilitySec = this.config.get<number>('LEASE_VISIBILITY_TIMEOUT', 300);
     this.visibilityTimeoutMs = visibilitySec * 1000;
@@ -180,10 +188,30 @@ export class JobsService {
       (data as any).leaseExpiresAt = new Date(now.getTime() + this.visibilityTimeoutMs);
     }
 
-    return this.prisma.job.update({
+    const updated = await this.prisma.job.update({
       where: { id: jobId },
       data,
     });
+
+    // Side effects on the Match/Clip projections. Never fail the worker's
+    // report over them -- the job row is already the source of truth, and a
+    // re-run/backfill can recover a missed projection.
+    try {
+      if (dto.status === 'COMPLETED') {
+        const { ingested } = await this.clips.ingestCompletedJob(updated);
+        this.logger.log(`Job ${updated.id} completed: ingested ${ingested} clip(s)`);
+      } else if (dto.status === 'FAILED') {
+        await this.clips.markJobMatchFailed(updated);
+      } else if (dto.stage && STAGES_PAST_DOWNLOAD.has(dto.stage)) {
+        await this.clips.markJobMatchDownloaded(updated);
+      }
+    } catch (e) {
+      this.logger.error(
+        `Clip/match ingestion failed for job ${updated.id}: ${(e as Error).message}`,
+      );
+    }
+
+    return updated;
   }
 
   async createJob(data: {
@@ -239,7 +267,7 @@ export class JobsService {
       throw new BadRequestException('Invalid share code');
     }
 
-    const existing = await this.prisma.matchShareCode.findUnique({
+    const existing = await this.prisma.match.findUnique({
       where: {
         playerId_shareCode: { playerId: data.playerId, shareCode },
       },
@@ -259,10 +287,10 @@ export class JobsService {
       throw new BadRequestException('trustedSteamIds must be non-empty');
     }
 
-    // Transaction: create job + upsert MatchShareCode with jobId
+    // Transaction: create job + upsert the Match row with jobId
     const job = await this.prisma.$transaction(async (tx) => {
       // Re-check inside txn
-      const again = await tx.matchShareCode.findUnique({
+      const again = await tx.match.findUnique({
         where: {
           playerId_shareCode: { playerId: data.playerId, shareCode },
         },
@@ -283,7 +311,7 @@ export class JobsService {
         },
       });
 
-      await tx.matchShareCode.upsert({
+      await tx.match.upsert({
         where: {
           playerId_shareCode: { playerId: data.playerId, shareCode },
         },
@@ -291,6 +319,9 @@ export class JobsService {
           playerId: data.playerId,
           shareCode,
           jobId: created.id,
+          // Best-known match time at detection: now. A manual submit of an
+          // old code overstates it; good enough until demo-header parsing.
+          matchDate: new Date(),
         },
         update: {
           jobId: created.id,
@@ -372,6 +403,7 @@ export class JobsService {
         },
       });
       failedCount = res.count;
+      await this.clips.markMatchesFailedForJobs(ids);
     }
 
     return { released: released.count, failed: failedCount };

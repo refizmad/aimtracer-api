@@ -36,6 +36,13 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 - **Match history enrollment** — encrypted Steam match-history auth code + known share-code anchor. Status: `ACTIVE` / `DISABLED` / `INVALID_AUTH` (403) / `CHAIN_BROKEN` (412).
 - **Poller** — `@Cron` every 10m when `MATCH_HISTORY_POLL_ENABLED=true`; walks `GetNextMatchSharingCode`, enqueues via `enqueueClipForPlayer` with `trustedSteamIds: [steamId64]`.
 
+## Clips product (M2+)
+
+- **Match** — a player's CS2 match keyed by share code (`Match` model; evolved from the old `MatchShareCode` discovery row). Lifecycle: `DETECTED` → `DOWNLOADED` → `RENDERED` / `FAILED`. `matchDate` is discovery/submit time for the beta (not yet demo-header time).
+- **Clip** — a rendered highlight row (`Clip` model), upserted by `file` (mp4 basename = S3 object key / manifest dedup key) when a worker reports `COMPLETED`. Metadata (map, kills, type, score, …) comes from the clipper sidecar via `result.clips[]`.
+- **Ingestion** — `ClipsService.ingestCompletedJob` runs as a non-fatal side effect of `PATCH /worker/jobs/:id` (job row remains source of truth). Stage reports past download advance Match to `DOWNLOADED`.
+- **Clip URL** — bucket stays private (ADR-0004). Durable identity is `Clip.file`; API-issued short-lived presigned GETs are M1 (playback). `Clip.url` may hold a worker-supplied URL that expires.
+
 ## Related contexts
 
 - **[[cs2-clip]]** — the worker process that leases and fulfils jobs (`worker.py`).
