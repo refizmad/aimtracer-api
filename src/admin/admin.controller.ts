@@ -126,27 +126,23 @@ export class AdminController {
   }
 
   /**
-   * First-deploy helper: create worker + invite and return copy-paste
-   * snippets for the Windows render PC (replaces manual curl bootstrap).
+   * Worker setup only (machine token + Windows snippets).
+   * Friend invites: POST /admin/invites — workers are not invited users.
    */
   @Post('setup')
   @HttpCode(201)
   @ApiOperation({
-    summary: 'One-shot: worker token + friend invite + Windows snippets',
+    summary: 'Register render worker and return Windows env snippets',
   })
-  async firstDeploySetup(
+  async workerSetup(
     @Body()
     body: {
       workerName?: string;
       machineToken?: string;
-      inviteNote?: string;
-      maxUses?: number;
-      expiresInDays?: number;
       publicApiUrl?: string;
-      webOrigin?: string;
     },
   ) {
-    return this.admin.firstDeploySetup(body || {});
+    return this.admin.workerSetup(body || {});
   }
 }
 

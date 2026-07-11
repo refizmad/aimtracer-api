@@ -24,13 +24,16 @@ async function main() {
     body: JSON.stringify({
       workerName: 'probe-pc',
       publicApiUrl: 'https://api.example.com',
-      webOrigin: 'https://example.com',
-      maxUses: 2,
     }),
   });
   const text = await r.text();
   console.log('status', r.status);
   console.log(text.slice(0, 500));
+  const j = JSON.parse(text);
+  if (j.invite) {
+    console.error('FAIL: setup should not create invites');
+    process.exitCode = 1;
+  }
 }
 
 main().catch((e) => {

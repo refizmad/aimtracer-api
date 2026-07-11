@@ -169,16 +169,17 @@ Admin: open `https://aimtracer.com/admin`, enter the same `ADMIN_TOKEN` (stored 
 
 ---
 
-## 5. Worker token + invite (easy path — no curl)
+## 5. Worker token (easy path — no curl)
+
+The render PC is **not** invited. Setup only issues a **machine token**.
 
 After **web** and **api** are healthy:
 
 1. Open **`https://aimtracer.com/admin`**
 2. Unlock with the same `ADMIN_TOKEN` as the api Coolify env
-3. Stay on the **Setup** tab → set public API URL + web origin if needed  
-4. Click **Create invite + worker token**
-5. **Copy invite link** → send to a friend  
-6. **Copy cmd block** (or use PowerShell) → paste on the render PC in `cs2-clip`
+3. **Setup** tab → set public API URL if needed  
+4. Click **Create worker token** → **Copy cmd block** → paste on the render PC in `cs2-clip`
+5. Friend access: **Invites** tab → create invite link when you need one
 
 ### Even easier on the PC
 

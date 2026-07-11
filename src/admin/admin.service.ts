@@ -7,7 +7,6 @@ import {
 } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { randomToken } from '../common/crypto.util';
 
 @Injectable()
 export class AdminService {
@@ -323,32 +322,22 @@ export class AdminService {
   }
 
   /**
-   * One-shot first-deploy helper: create (or reuse) a worker token + a friend
-   * invite, and return copy-paste snippets for the Windows render PC.
+   * Worker-only setup: create (or reuse) a machine token and return copy-paste
+   * snippets for the Windows render PC. Friend invites stay on POST /admin/invites
+   * — workers are not invited users.
    */
-  async firstDeploySetup(opts: {
+  async workerSetup(opts: {
     workerName?: string;
-    /** If set, upsert worker with this exact machine token (easier ops). */
+    /** If set, upsert worker with this exact machine token. */
     machineToken?: string;
-    inviteNote?: string;
-    maxUses?: number;
-    expiresInDays?: number;
     /** Public API base the worker will call (HTTPS). */
     publicApiUrl?: string;
-    /** Public web origin for invite links. */
-    webOrigin?: string;
   }) {
     const workerName = (opts.workerName || 'render-pc').trim();
     const publicApiUrl = (opts.publicApiUrl || 'https://api.aimtracer.com')
       .trim()
       .replace(/\/+$/, '');
-    const webOrigin = (opts.webOrigin || 'https://aimtracer.com')
-      .trim()
-      .replace(/\/+$/, '');
 
-    // Prefer reusing an existing enabled worker with the same name when a
-    // machineToken was not supplied (token cannot be re-read from DB as
-    // plaintext if we only store it once — we store plaintext today, so we can).
     let workerRow = await this.prisma.worker.findFirst({
       where: { name: workerName },
       orderBy: { createdAt: 'asc' },
@@ -376,24 +365,6 @@ export class AdminService {
       workerCreated = true;
     }
 
-    const code =
-      randomToken('inv_', 9).replace(/^inv_/, '').toUpperCase().slice(0, 12);
-    const expiresAt =
-      opts.expiresInDays && opts.expiresInDays > 0
-        ? new Date(Date.now() + opts.expiresInDays * 24 * 60 * 60 * 1000)
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    const invite = await this.prisma.invite.create({
-      data: {
-        code,
-        note: opts.inviteNote?.trim() || 'friends beta',
-        maxUses:
-          opts.maxUses && opts.maxUses > 0 ? Math.trunc(opts.maxUses) : 5,
-        expiresAt,
-      },
-    });
-
-    const inviteUrl = `${webOrigin}/invite/${invite.code}`;
     const workerCmd = [
       `set AIMTRACE_API=${publicApiUrl}`,
       `set MACHINE_TOKEN=${machineToken}`,
@@ -418,16 +389,7 @@ export class AdminService {
         machineToken,
         created: workerCreated,
       },
-      invite: {
-        id: invite.id,
-        code: invite.code,
-        path: `/invite/${invite.code}`,
-        url: inviteUrl,
-        maxUses: invite.maxUses,
-        expiresAt: invite.expiresAt?.toISOString() ?? null,
-      },
       snippets: {
-        inviteUrl,
         /** cmd.exe on the render PC */
         workerCmd,
         /** PowerShell on the render PC */

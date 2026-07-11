@@ -1,7 +1,7 @@
 import { AdminService } from './admin.service';
 
 describe('AdminService', () => {
-  it('firstDeploySetup returns invite url and worker snippets', async () => {
+  it('workerSetup returns machine token and Windows snippets (no invite)', async () => {
     const prisma = {
       worker: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -17,27 +17,21 @@ describe('AdminService', () => {
         upsert: jest.fn(),
       },
       invite: {
-        create: jest.fn().mockImplementation(async ({ data }) => ({
-          id: 'i1',
-          ...data,
-          useCount: 0,
-          createdAt: new Date(),
-        })),
+        create: jest.fn(),
       },
     };
     const svc = new AdminService(prisma as any);
-    const out = await svc.firstDeploySetup({
+    const out = await svc.workerSetup({
       publicApiUrl: 'https://api.example.com/',
-      webOrigin: 'https://example.com',
-      maxUses: 3,
     });
-    expect(out.invite.url).toBe(
-      `https://example.com/invite/${out.invite.code}`,
-    );
     expect(out.worker.machineToken).toBeTruthy();
-    expect(out.snippets.workerCmd).toContain('AIMTRACE_API=https://api.example.com');
+    expect(out.snippets.workerCmd).toContain(
+      'AIMTRACE_API=https://api.example.com',
+    );
     expect(out.snippets.workerCmd).toContain('MACHINE_TOKEN=');
     expect(out.snippets.workerPs).toContain('$env:AIMTRACE_API=');
+    expect((out as any).invite).toBeUndefined();
+    expect(prisma.invite.create).not.toHaveBeenCalled();
   });
 
   it('overview aggregates totals from prisma counts', async () => {
