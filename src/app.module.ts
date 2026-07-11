@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { MatchHistoryModule } from './match-history/match-history.module';
 import { ClipsModule } from './clips/clips.module';
+import { MatchesModule } from './matches/matches.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { AppController } from './app.controller';
     AdminModule,
     MatchHistoryModule,
     ClipsModule,
+    MatchesModule,
     WorkerModule,
     JobsModule,
     BootstrapModule,

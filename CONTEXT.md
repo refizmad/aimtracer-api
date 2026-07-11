@@ -43,6 +43,7 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 - **Ingestion** — `ClipsService.ingestCompletedJob` runs as a non-fatal side effect of `PATCH /worker/jobs/:id` (job row remains source of truth). Stage reports past download advance Match to `DOWNLOADED`.
 - **Clip URL** — bucket stays private (ADR-0004). Durable identity is `Clip.file`. `GET /clips/:id/media` (session) mints a short-lived presigned GET via `S3MediaService` when `S3_*` is set; non-production falls back to `CLIP_MEDIA_DEV_FALLBACK_URL` so local UI works without real credentials. `Clip.url` may hold a worker-supplied URL that expires.
 - **Clip list** — `GET /clips` (all friends, ADR-0002) and `GET /clips/mine` with filters (map, minKills, type, sort, pagination).
+- **Match list** — `GET /matches/mine` returns the session player's matches only (map, date, status DETECTED→DOWNLOADED→RENDERED/FAILED, clip count, linked job), plus a status summary.
 
 ## Related contexts
 
