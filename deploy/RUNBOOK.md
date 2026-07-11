@@ -1,12 +1,28 @@
-# Production runbook — aimtrace-api on a small VPS (M6)
+# Production runbook (M6)
 
-ADR-0001: one VPS, docker-compose, Caddy HTTPS. aimtrace (Next) stays on its current host (aimtracer.com). Workers reach the API over **outbound HTTPS only**.
+## Primary path: Coolify
 
-This milestone ships the files; **you** provision the VPS and paste real secrets. Agents must not use live credentials.
+**Use [COOLIFY.md](./COOLIFY.md).** One Coolify project:
+
+1. **web** — aimtracer.com (`aimtrace/`)
+2. **api** — api.aimtracer.com (`aimtrace-api/`)
+3. **postgres** — private
+
+Worker = Windows PC with Steam + CS2 → public `https://api…` only.
+
+Env cheat-sheets: `coolify.env.api.example`, `coolify.env.web.example`, `coolify.env.worker.example`.
 
 ---
 
-## 0. What you get in this repo
+## Fallback: bare VPS docker-compose + Caddy
+
+Only if you are not using Coolify. ADR-0001 primary is Coolify; compose remains supported.
+
+This milestone ships the files; **you** provision infrastructure and paste real secrets. Agents must not use live credentials.
+
+---
+
+## 0. What you get in this repo (compose fallback)
 
 | Path | Role |
 |---|---|

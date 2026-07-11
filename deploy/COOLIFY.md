@@ -1,0 +1,228 @@
+# Coolify deploy — aimtracer (M6, primary)
+
+**Layout (your approach):** one Coolify **Project** with three services on a shared network:
+
+1. **web** — `aimtracer.com` (this monorepo package: `aimtrace/`)
+2. **api** — public hostname e.g. `api.aimtracer.com` (`aimtrace-api/`)
+3. **postgres** — private only (Coolify database resource)
+
+**Worker:** Windows render PC (Steam + CS2). Not in Coolify. Outbound HTTPS → public API URL only.
+
+Coolify handles HTTPS/proxy. You still fill secrets and point DNS.
+
+---
+
+## Network diagram
+
+```
+Browsers ──HTTPS──► web (aimtracer.com) ──HTTP internal──► api :5500
+                         │                                    │
+                         │                                    ▼
+                         │                              postgres (internal)
+                         │
+Workers ──HTTPS───────► api (api.aimtracer.com)  ──► private S3 (presign/upload from worker)
+ (Windows PC)                ▲
+                             └── AIMTRACE_API + MACHINE_TOKEN
+```
+
+| Caller | Target | URL style |
+|---|---|---|
+| Next BFF (server) | api | **Internal** Coolify hostname, e.g. `http://api:5500` or `http://<coolify-api-service-name>:5500` |
+| Browser / Steam OpenID return | web | `https://aimtracer.com` |
+| Windows worker | api | **Public** `https://api.aimtracer.com` |
+| api | postgres | Coolify `DATABASE_URL` (internal host) |
+
+Do **not** put the worker on the internal network — it is a different machine. Do **not** publish Postgres to the internet.
+
+---
+
+## 1. Create the project
+
+In Coolify:
+
+1. New **Project** (e.g. `aimtracer`).
+2. Add **PostgreSQL** resource (service name e.g. `postgres`). Note user/password/db name Coolify generates.
+3. Add **Application** → aimtrace-api (name e.g. `api`).
+4. Add **Application** → aimtrace (name e.g. `web` / domain `aimtracer.com`).
+5. Ensure both apps and the database are on the **same Docker network** (default within a Coolify project/environment).
+
+DNS:
+
+- `aimtracer.com` (+ `www` if you want) → Coolify server (web service).
+- `api.aimtracer.com` → Coolify server (api service).
+
+---
+
+## 2. Service: postgres
+
+- Engine: Postgres 16 (Coolify default is fine).
+- **No public port / no domain.**
+- Copy the connection string Coolify shows for applications on the same network.
+
+Typical shape (names vary by Coolify version):
+
+```text
+postgresql://USER:PASSWORD@postgres:5432/aimtrace?schema=public
+```
+
+Use the **hostname Coolify assigns** (often the service name). Paste into the API’s `DATABASE_URL`.
+
+Backups: enable Coolify DB backups if available; otherwise schedule `pg_dump` from a one-off or the host (see `backup-pg.sh` for dump logic).
+
+---
+
+## 3. Service: api (`aimtrace-api`)
+
+| Setting | Value |
+|---|---|
+| Source | Git repo → directory / base: `aimtrace-api` (or monorepo root with Dockerfile path) |
+| Build | Dockerfile → `aimtrace-api/Dockerfile` |
+| Port | **5500** |
+| Domain | `api.aimtracer.com` (HTTPS on) |
+| Healthcheck | `GET /health` |
+
+### Environment variables (api)
+
+```env
+NODE_ENV=production
+PORT=5500
+
+# From Coolify Postgres (internal host — not localhost)
+DATABASE_URL=postgresql://…@<postgres-service>:5432/…?schema=public
+
+# Steam OpenID allowlist = public WEB origin (not the API domain)
+AUTH_RETURN_BASE_URL=https://aimtracer.com
+
+ADMIN_TOKEN=<long random>
+BOOTSTRAP_TOKEN=<same or separate>
+CREDENTIALS_ENCRYPTION_KEY=<base64 32 bytes>
+STEAM_WEBAPI_KEY=<steam web api key>
+
+MATCH_HISTORY_POLL_ENABLED=false
+MATCH_HISTORY_MAX_PAGES=15
+MAX_AUTO_JOBS_PER_PLAYER_PER_DAY=10
+MAX_GLOBAL_QUEUE_DEPTH=50
+LEASE_VISIBILITY_TIMEOUT=300
+MAX_LEASE_WAIT_SECONDS=25
+
+# Private iDrive e2 — read keys for clip media presigns (ADR-0004)
+S3_ENDPOINT_URL=https://….idrivee2….com
+S3_BUCKET=aimtracer-clips
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_REGION=us-east-1
+S3_PREFIX=clips
+S3_PRESIGN_EXPIRY=3600
+```
+
+Generate secrets:
+
+```bash
+openssl rand -hex 32
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+The image entrypoint runs `prisma migrate deploy` then starts the API. First deploy needs a reachable `DATABASE_URL`.
+
+### After first successful api deploy
+
+```bash
+# From any machine that can hit the public API:
+export API=https://api.aimtracer.com
+export ADMIN_TOKEN='…'
+
+curl -fsS "$API/health"
+
+curl -sS -X POST "$API/admin/invites" \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"note":"first friend","maxUses":1,"expiresInDays":30}'
+
+curl -sS -X POST "$API/bootstrap/worker" \
+  -H "X-Bootstrap-Token: $ADMIN_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"name":"render-pc","machineToken":"YOUR_LONG_WORKER_TOKEN"}'
+```
+
+---
+
+## 4. Service: web (`aimtrace` / aimtracer.com)
+
+| Setting | Value |
+|---|---|
+| Source | Git → `aimtrace/` (or monorepo + Dockerfile path `aimtrace/Dockerfile`) |
+| Build | Dockerfile → `aimtrace/Dockerfile` (standalone Next) |
+| Port | **3000** |
+| Domain | `aimtracer.com` (and `www` redirect if desired) |
+
+### Environment variables (web)
+
+```env
+NODE_ENV=production
+
+# Prefer INTERNAL Coolify DNS to the api service (server-side BFF only).
+# Replace "api" with the exact Coolify service name if different.
+CLIPPER_BACKEND_URL=http://api:5500
+
+# If internal DNS fails in your Coolify build, fall back to public:
+# CLIPPER_BACKEND_URL=https://api.aimtracer.com
+
+# Optional site URL for SEO/metadata if you use it
+# NEXT_PUBLIC_SITE_URL=https://aimtracer.com
+
+# Do NOT set NEXT_PUBLIC_CLIPPER_BACKEND_URL in production
+```
+
+Steam login flow: browser → `https://aimtracer.com/api/auth/steam/*` → API OpenID with `return_to` on the **web** origin. That is why `AUTH_RETURN_BASE_URL` on the API must be `https://aimtracer.com`.
+
+Admin: open `https://aimtracer.com/admin`, enter the same `ADMIN_TOKEN` (stored in httpOnly cookie by the BFF; BFF calls api with `X-Admin-Token`).
+
+---
+
+## 5. Worker (Windows render PC — not Coolify)
+
+On the machine with Steam + CS2 (`cs2-clip`):
+
+```bat
+set AIMTRACE_API=https://api.aimtracer.com
+set MACHINE_TOKEN=YOUR_LONG_WORKER_TOKEN
+python worker.py
+```
+
+Or put the same keys in the environment / a small `.env` loader you already use. Worker must:
+
+- Reach **public** `https://api.aimtracer.com` (outbound 443).
+- Keep using **private** S3 upload credentials locally (`s3_config.json` / `S3_*`) — same bucket as API read keys.
+- Never need inbound ports, VPN, or Coolify network membership.
+
+Unattended service wrapper is **M7**.
+
+---
+
+## 6. Verification checklist
+
+| # | Check |
+|---|---|
+| 1 | `curl -fsS https://api.aimtracer.com/health` |
+| 2 | `curl -fsS -H "X-Admin-Token: …" https://api.aimtracer.com/admin/stats` |
+| 3 | `https://aimtracer.com` loads; `/login` + invite Steam login works |
+| 4 | Logged-in `/clips` gallery hits API (internal BFF); no CORS breakage |
+| 5 | `/admin` unlocks with token; create invite → copy `https://aimtracer.com/invite/…` |
+| 6 | From render PC: worker leases a job (`GET /worker/jobs/lease` in API logs) |
+| 7 | Postgres has **no** public domain |
+
+---
+
+## 7. Coolify tips
+
+- **Redeploy order:** postgres healthy → api (migrates) → web.
+- **Service name in `CLIPPER_BACKEND_URL`:** open the api service in Coolify and use the name shown for internal DNS (often the resource name). Port is the container port **5500**, not 443.
+- **Long-poll leases:** worker `wait≈25s` — Coolify proxy timeouts are usually fine; if lease requests drop, raise proxy read timeout for the api service.
+- **Secrets:** store in Coolify env UI; never commit `deploy/.env`.
+- **Monorepo:** if both packages live in one git root, set each application’s **Base Directory** / Dockerfile path to `aimtrace` or `aimtrace-api`.
+
+---
+
+## 8. Fallback
+
+If Coolify is down, `deploy/docker-compose.yml` + Caddy still describe a single-box layout. Prefer Coolify when it is how you operate the server.

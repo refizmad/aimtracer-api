@@ -3,8 +3,8 @@
 Status: resolved
 Milestone: M6 (ROADMAP.md, workspace root)
 Blocked by: 01
-Decision: ADR-0001 (small VPS, docker-compose, Caddy, outbound-only worker).
-Note: scaffolding + runbook in git; live VPS checklist is operator-run (credentials).
+Decision: ADR-0001 amended — Coolify project (web + api + postgres); worker on Windows PC.
+Note: Coolify runbook in deploy/COOLIFY.md; live cutover is operator-run (credentials).
 
 ## Scope
 
@@ -19,14 +19,13 @@ Note: scaffolding + runbook in git; live VPS checklist is operator-run (credenti
 
 ## Answer
 
-Landed 2026-07-11 (scaffolding):
+Landed 2026-07-11; hosting approach updated same day to Coolify:
 
-- `Dockerfile`, `deploy/docker-compose.yml` (db+api+caddy), `deploy/Caddyfile`
-- `deploy/.env.example`, entrypoint migrate+start, backup script + cron example
-- `deploy/RUNBOOK.md` full operator checklist
-- `start:prod` fixed to `dist/src/main.js`
-- aimtrace `.env.example` documents `CLIPPER_BACKEND_URL` for prod
+- **Primary:** `deploy/COOLIFY.md` — 3 services (web, api, postgres), shared network; Windows worker outbound HTTPS
+- Env examples: `coolify.env.api|web|worker.example`
+- Dockerfiles: `aimtrace-api/Dockerfile`, `aimtrace/Dockerfile` (Next `output: "standalone"`)
+- Fallback compose+Caddy retained in `deploy/`
 
-Live acceptance (friend login + worker lease on real host) remains for the operator after VPS provision.
+Live acceptance remains operator-run on Coolify.
 
 ## Comments

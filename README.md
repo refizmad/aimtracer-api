@@ -4,10 +4,14 @@ NestJS + Fastify backend for aimtracer clipper integration.
 
 ## Production deploy (M6)
 
-See **[deploy/RUNBOOK.md](./deploy/RUNBOOK.md)** — docker-compose + Caddy + Postgres on a small VPS.
+**Primary: Coolify** — one project, three services (web + api + postgres).  
+See **[deploy/COOLIFY.md](./deploy/COOLIFY.md)**.
+
+**Fallback:** docker-compose + Caddy — **[deploy/RUNBOOK.md](./deploy/RUNBOOK.md)**.
 
 ```bash
-cp deploy/.env.example deploy/.env   # fill secrets on the VPS only
+# Fallback only
+cp deploy/.env.example deploy/.env
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 

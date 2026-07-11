@@ -48,9 +48,10 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 
 ## Production (M6)
 
-- **Deploy unit** — one VPS runs Postgres + this API + Caddy HTTPS (`deploy/docker-compose.yml`). aimtrace web stays on its own host with `CLIPPER_BACKEND_URL` pointing at `https://API_DOMAIN`.
-- **Runbook** — `deploy/RUNBOOK.md` (provision, DNS, secrets, seed worker/invite, backups). User owns credential-bearing steps.
-- **Backups** — nightly `pg_dump` via `deploy/backup-pg.sh` into `deploy/backups/` (+ optional e2 upload).
+- **Coolify project** (primary, ADR-0001) — three services on one private network: **web** (aimtracer.com), **api** (public `api.*`), **postgres** (internal). BFF uses internal `http://api:5500`; Windows worker uses public `https://api…`.
+- **Runbook** — `deploy/COOLIFY.md` (primary); compose+Caddy fallback in `deploy/RUNBOOK.md`.
+- **Worker** — not hosted in Coolify; current Windows PC with Steam/CS2, outbound HTTPS only.
+- **Backups** — Coolify DB backups and/or `deploy/backup-pg.sh`.
 
 ## Related contexts
 
