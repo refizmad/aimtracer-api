@@ -79,7 +79,7 @@ Backups: enable Coolify DB backups if available; otherwise schedule `pg_dump` fr
 | Build | Dockerfile → `aimtrace-api/Dockerfile` |
 | Port | **5500** |
 | Domain | `api.aimtracer.com` (HTTPS on) |
-| Healthcheck | `GET /health` |
+| Healthcheck | Prefer **`GET /health/ready`** (DB up); fallback `GET /health` |
 
 ### Environment variables (api)
 
@@ -204,7 +204,7 @@ Unattended service wrapper is **M7**.
 
 | # | Check |
 |---|---|
-| 1 | `curl -fsS https://api.aimtracer.com/health` |
+| 1 | `curl -fsS https://api.aimtracer.com/health` and `/health/ready` (ready + database ok) |
 | 2 | `https://aimtracer.com/admin` unlocks; **Setup** creates invite + worker |
 | 3 | Invite link works (Steam login) |
 | 4 | `/clips` gallery loads for a logged-in friend |

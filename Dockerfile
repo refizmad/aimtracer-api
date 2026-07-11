@@ -39,7 +39,8 @@ RUN chmod +x /entrypoint.sh \
 
 USER node
 EXPOSE 5500
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
+# Prefer readiness (DB) over bare liveness so Coolify doesn't route while Postgres is down.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD curl -fsS "http://127.0.0.1:${PORT}/health/ready" || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
