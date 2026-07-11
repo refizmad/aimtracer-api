@@ -127,22 +127,10 @@ The image entrypoint runs `prisma migrate deploy` then starts the API. First dep
 ### After first successful api deploy
 
 ```bash
-# From any machine that can hit the public API:
-export API=https://api.aimtracer.com
-export ADMIN_TOKEN='…'
-
-curl -fsS "$API/health"
-
-curl -sS -X POST "$API/admin/invites" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  -H "content-type: application/json" \
-  -d '{"note":"first friend","maxUses":1,"expiresInDays":30}'
-
-curl -sS -X POST "$API/bootstrap/worker" \
-  -H "X-Bootstrap-Token: $ADMIN_TOKEN" \
-  -H "content-type: application/json" \
-  -d '{"name":"render-pc","machineToken":"YOUR_LONG_WORKER_TOKEN"}'
+curl -fsS https://api.aimtracer.com/health
 ```
+
+Worker token + friend invite are created in the **admin UI** (next section) — no curl.
 
 ---
 
@@ -179,21 +167,31 @@ Admin: open `https://aimtracer.com/admin`, enter the same `ADMIN_TOKEN` (stored 
 
 ---
 
-## 5. Worker (Windows render PC — not Coolify)
+## 5. Worker token + invite (easy path — no curl)
 
-On the machine with Steam + CS2 (`cs2-clip`):
+After **web** and **api** are healthy:
 
-```bat
-set AIMTRACE_API=https://api.aimtracer.com
-set MACHINE_TOKEN=YOUR_LONG_WORKER_TOKEN
-python worker.py
+1. Open **`https://aimtracer.com/admin`**
+2. Unlock with the same `ADMIN_TOKEN` as the api Coolify env
+3. Stay on the **Setup** tab → set public API URL + web origin if needed  
+4. Click **Create invite + worker token**
+5. **Copy invite link** → send to a friend  
+6. **Copy cmd block** (or use PowerShell) → paste on the render PC in `cs2-clip`
+
+### Even easier on the PC
+
+```powershell
+cd path\to\cs2-clip
+powershell -ExecutionPolicy Bypass -File .\setup_worker.ps1
 ```
 
-Or put the same keys in the environment / a small `.env` loader you already use. Worker must:
+It prompts for API URL + admin token, runs `worker.py --register`, saves `worker_token.json`, and can start the lease loop. (`ADMIN_TOKEN` works as bootstrap token.)
 
-- Reach **public** `https://api.aimtracer.com` (outbound 443).
-- Keep using **private** S3 upload credentials locally (`s3_config.json` / `S3_*`) — same bucket as API read keys.
-- Never need inbound ports, VPN, or Coolify network membership.
+Worker must:
+
+- Reach **public** `https://api.aimtracer.com` (outbound 443)
+- Keep local S3 write credentials (`s3_config.json` / `S3_*`)
+- No inbound ports / not on Coolify network
 
 Unattended service wrapper is **M7**.
 
@@ -204,12 +202,11 @@ Unattended service wrapper is **M7**.
 | # | Check |
 |---|---|
 | 1 | `curl -fsS https://api.aimtracer.com/health` |
-| 2 | `curl -fsS -H "X-Admin-Token: …" https://api.aimtracer.com/admin/stats` |
-| 3 | `https://aimtracer.com` loads; `/login` + invite Steam login works |
-| 4 | Logged-in `/clips` gallery hits API (internal BFF); no CORS breakage |
-| 5 | `/admin` unlocks with token; create invite → copy `https://aimtracer.com/invite/…` |
-| 6 | From render PC: worker leases a job (`GET /worker/jobs/lease` in API logs) |
-| 7 | Postgres has **no** public domain |
+| 2 | `https://aimtracer.com/admin` unlocks; **Setup** creates invite + worker |
+| 3 | Invite link works (Steam login) |
+| 4 | `/clips` gallery loads for a logged-in friend |
+| 5 | Render PC worker leases (`/worker/jobs/lease` in api logs) |
+| 6 | Postgres has **no** public domain |
 
 ---
 

@@ -109,6 +109,45 @@ export class AdminController {
   async listInvites() {
     return this.admin.listInvites();
   }
+
+  @Post('workers')
+  @HttpCode(201)
+  @ApiOperation({
+    summary: 'Register a render worker; returns machineToken once',
+  })
+  async createWorker(
+    @Body() body: { name?: string; machineToken?: string },
+  ) {
+    const worker = await this.admin.createWorker({
+      name: body.name || 'render-pc',
+      machineToken: body.machineToken,
+    });
+    return { worker };
+  }
+
+  /**
+   * First-deploy helper: create worker + invite and return copy-paste
+   * snippets for the Windows render PC (replaces manual curl bootstrap).
+   */
+  @Post('setup')
+  @HttpCode(201)
+  @ApiOperation({
+    summary: 'One-shot: worker token + friend invite + Windows snippets',
+  })
+  async firstDeploySetup(
+    @Body()
+    body: {
+      workerName?: string;
+      machineToken?: string;
+      inviteNote?: string;
+      maxUses?: number;
+      expiresInDays?: number;
+      publicApiUrl?: string;
+      webOrigin?: string;
+    },
+  ) {
+    return this.admin.firstDeploySetup(body || {});
+  }
 }
 
 function parseJobStatus(v?: string): JobStatus | undefined {

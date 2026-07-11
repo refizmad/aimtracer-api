@@ -35,8 +35,12 @@ export class BootstrapController {
     @Headers('x-bootstrap-token') bootstrapToken: string,
     @Body() body: { name: string },
   ) {
-    const expected = this.config.get<string>('BOOTSTRAP_TOKEN');
-    if (!expected || bootstrapToken !== expected) {
+    // Accept BOOTSTRAP_TOKEN or ADMIN_TOKEN so one Coolify secret is enough.
+    const expected =
+      this.config.get<string>('BOOTSTRAP_TOKEN') ||
+      this.config.get<string>('ADMIN_TOKEN') ||
+      '';
+    if (!expected || !bootstrapToken || bootstrapToken !== expected) {
       throw new UnauthorizedException('Invalid bootstrap token');
     }
 

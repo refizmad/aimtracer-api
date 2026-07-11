@@ -1,11 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   EnrollmentStatus,
   JobStatus,
   MatchStatus,
   Prisma,
 } from '@prisma/client';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomToken } from '../common/crypto.util';
 
 @Injectable()
 export class AdminService {
@@ -282,6 +284,157 @@ export class AdminService {
         usedBy: i.usedBy,
         path: `/invite/${i.code}`,
       })),
+    };
+  }
+
+  /**
+   * Register a worker machine. machineToken is returned once — store it on the
+   * render PC (env or worker_token.json).
+   */
+  async createWorker(opts: { name: string; machineToken?: string }) {
+    const name = opts.name?.trim();
+    if (!name) {
+      throw new BadRequestException('name is required');
+    }
+    const machineToken =
+      opts.machineToken?.trim() ||
+      'mt_' +
+        Buffer.from(
+          crypto.randomUUID().replace(/-/g, '') + Date.now().toString(36),
+        )
+          .toString('base64url')
+          .slice(0, 40);
+
+    const worker = await this.prisma.worker.create({
+      data: {
+        name,
+        machineToken,
+        enabled: true,
+      },
+    });
+
+    return {
+      id: worker.id,
+      name: worker.name,
+      enabled: worker.enabled,
+      machineToken,
+      note: 'Store machineToken on the render PC. It will not be shown again.',
+    };
+  }
+
+  /**
+   * One-shot first-deploy helper: create (or reuse) a worker token + a friend
+   * invite, and return copy-paste snippets for the Windows render PC.
+   */
+  async firstDeploySetup(opts: {
+    workerName?: string;
+    /** If set, upsert worker with this exact machine token (easier ops). */
+    machineToken?: string;
+    inviteNote?: string;
+    maxUses?: number;
+    expiresInDays?: number;
+    /** Public API base the worker will call (HTTPS). */
+    publicApiUrl?: string;
+    /** Public web origin for invite links. */
+    webOrigin?: string;
+  }) {
+    const workerName = (opts.workerName || 'render-pc').trim();
+    const publicApiUrl = (opts.publicApiUrl || 'https://api.aimtracer.com')
+      .trim()
+      .replace(/\/+$/, '');
+    const webOrigin = (opts.webOrigin || 'https://aimtracer.com')
+      .trim()
+      .replace(/\/+$/, '');
+
+    // Prefer reusing an existing enabled worker with the same name when a
+    // machineToken was not supplied (token cannot be re-read from DB as
+    // plaintext if we only store it once — we store plaintext today, so we can).
+    let workerRow = await this.prisma.worker.findFirst({
+      where: { name: workerName },
+      orderBy: { createdAt: 'asc' },
+    });
+    let machineToken: string;
+    let workerCreated: boolean;
+
+    if (opts.machineToken?.trim()) {
+      machineToken = opts.machineToken.trim();
+      workerRow = await this.prisma.worker.upsert({
+        where: { machineToken },
+        update: { name: workerName, enabled: true },
+        create: { name: workerName, machineToken, enabled: true },
+      });
+      workerCreated = true;
+    } else if (workerRow) {
+      machineToken = workerRow.machineToken;
+      workerCreated = false;
+    } else {
+      const created = await this.createWorker({ name: workerName });
+      machineToken = created.machineToken;
+      workerRow = await this.prisma.worker.findUniqueOrThrow({
+        where: { id: created.id },
+      });
+      workerCreated = true;
+    }
+
+    const code =
+      randomToken('inv_', 9).replace(/^inv_/, '').toUpperCase().slice(0, 12);
+    const expiresAt =
+      opts.expiresInDays && opts.expiresInDays > 0
+        ? new Date(Date.now() + opts.expiresInDays * 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    const invite = await this.prisma.invite.create({
+      data: {
+        code,
+        note: opts.inviteNote?.trim() || 'friends beta',
+        maxUses:
+          opts.maxUses && opts.maxUses > 0 ? Math.trunc(opts.maxUses) : 5,
+        expiresAt,
+      },
+    });
+
+    const inviteUrl = `${webOrigin}/invite/${invite.code}`;
+    const workerCmd = [
+      `set AIMTRACE_API=${publicApiUrl}`,
+      `set MACHINE_TOKEN=${machineToken}`,
+      `python worker.py --long-poll 25`,
+    ].join('\r\n');
+
+    const workerPs = [
+      `$env:AIMTRACE_API="${publicApiUrl}"`,
+      `$env:MACHINE_TOKEN="${machineToken}"`,
+      `python worker.py --long-poll 25`,
+    ].join('\n');
+
+    const registerCmd = [
+      `set AIMTRACE_API=${publicApiUrl}`,
+      `python worker.py --register ${workerName} --bootstrap-token <ADMIN_OR_BOOTSTRAP_TOKEN>`,
+    ].join('\r\n');
+
+    return {
+      worker: {
+        id: workerRow.id,
+        name: workerRow.name,
+        machineToken,
+        created: workerCreated,
+      },
+      invite: {
+        id: invite.id,
+        code: invite.code,
+        path: `/invite/${invite.code}`,
+        url: inviteUrl,
+        maxUses: invite.maxUses,
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+      },
+      snippets: {
+        inviteUrl,
+        /** cmd.exe on the render PC */
+        workerCmd,
+        /** PowerShell on the render PC */
+        workerPs,
+        /** Alternative: self-register from the PC (saves worker_token.json) */
+        registerCmd,
+      },
     };
   }
 }
