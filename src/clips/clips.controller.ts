@@ -100,7 +100,9 @@ export class ClipsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Fetch one clip by id' })
+  @ApiOperation({
+    summary: 'Fetch one clip by short public code or internal UUID',
+  })
   async getOne(
     @CurrentPlayer() _player: AuthenticatedPlayer,
     @Param('id') id: string,

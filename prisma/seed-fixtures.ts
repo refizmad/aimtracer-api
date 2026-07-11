@@ -18,6 +18,7 @@ import { PrismaClient, JobStatus, JobSource, MatchStatus } from '@prisma/client'
 import * as fs from 'fs';
 import * as path from 'path';
 import { clipRowFromResultEntry, WorkerClipEntry } from '../src/clips/clip-ingest.util';
+import { generatePublicCode } from '../src/clips/public-code.util';
 
 const prisma = new PrismaClient();
 
@@ -122,6 +123,7 @@ async function main() {
           update: { ...row, playerId, matchId: match.id, jobId: job.id },
           create: {
             ...row,
+            publicCode: generatePublicCode(),
             playerId,
             matchId: match.id,
             jobId: job.id,

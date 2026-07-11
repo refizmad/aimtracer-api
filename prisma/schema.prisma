@@ -168,6 +168,8 @@ model Match {
 /// (metadata originates in the clipper's <clip>.json sidecars).
 model Clip {
   id            String   @id @default(uuid())
+  /// Short public share slug for /clip/:code (UUID stays internal).
+  publicCode    String   @unique @map("public_code")
   playerId      String?  @map("player_id")
   matchId       String?  @map("match_id")
   jobId         String?  @map("job_id")

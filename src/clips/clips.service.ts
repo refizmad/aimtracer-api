@@ -1,7 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Job, Match, MatchStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { clipRowFromResultEntry, WorkerClipEntry } from './clip-ingest.util';
+import { generatePublicCode, isClipUuid } from './public-code.util';
 import { S3MediaService } from './s3-media.service';
 
 /** Forward-only lifecycle rank; FAILED never overwrites RENDERED. */
@@ -29,6 +35,8 @@ export type ClipListQuery = {
 
 export type PublicClip = {
   id: string;
+  /** Short public share slug (`/clip/:publicCode`). */
+  publicCode: string;
   file: string;
   map: string | null;
   round: number | null;
@@ -56,13 +64,17 @@ export type PublicClip = {
 };
 
 @Injectable()
-export class ClipsService {
+export class ClipsService implements OnModuleInit {
   private readonly logger = new Logger(ClipsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly media: S3MediaService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.backfillMissingPublicCodes();
+  }
 
   /**
    * Turn a COMPLETED job's `result.clips[]` into Clip rows and mark its Match
@@ -84,9 +96,11 @@ export class ClipsService {
         matchId: match?.id ?? null,
         jobId: job.id,
       };
+      const publicCode = await this.allocatePublicCode();
       await this.prisma.clip.upsert({
         where: { file: row.file },
-        create: { ...row, ...ownership },
+        create: { ...row, ...ownership, publicCode },
+        // Never rotate publicCode on re-render — share links must stay stable.
         update: { ...row, ...ownership },
       });
       ingested++;
@@ -195,27 +209,18 @@ export class ClipsService {
     };
   }
 
-  async getPublicClip(id: string): Promise<PublicClip> {
-    const clip = await this.prisma.clip.findUnique({
-      where: { id },
-      include: {
-        player: {
-          select: {
-            id: true,
-            steamId64: true,
-            displayName: true,
-            avatarUrl: true,
-          },
-        },
-        match: { select: { matchDate: true } },
-      },
-    });
+  /**
+   * Fetch one clip by short public code or internal UUID
+   * (old share links with UUID still work).
+   */
+  async getPublicClip(idOrCode: string): Promise<PublicClip> {
+    const clip = await this.findClipByIdOrCode(idOrCode);
     if (!clip) throw new NotFoundException('Clip not found');
     return this.toPublic(clip);
   }
 
   async getPlayableMedia(
-    id: string,
+    idOrCode: string,
     kind: 'video' | 'poster' = 'video',
   ): Promise<{
     url: string;
@@ -224,7 +229,7 @@ export class ClipsService {
     file: string;
     kind: 'video' | 'poster';
   }> {
-    const clip = await this.prisma.clip.findUnique({ where: { id } });
+    const clip = await this.findClipByIdOrCode(idOrCode);
     if (!clip) throw new NotFoundException('Clip not found');
     if (kind === 'poster') {
       const posterFile = posterFileFromClip(clip.file);
@@ -250,8 +255,82 @@ export class ClipsService {
     };
   }
 
+  private async findClipByIdOrCode(idOrCode: string) {
+    const key = idOrCode.trim();
+    if (!key) return null;
+    const include = {
+      player: {
+        select: {
+          id: true,
+          steamId64: true,
+          displayName: true,
+          avatarUrl: true,
+        },
+      },
+      match: { select: { matchDate: true } },
+    } as const;
+
+    if (isClipUuid(key)) {
+      return this.prisma.clip.findUnique({ where: { id: key }, include });
+    }
+    return this.prisma.clip.findUnique({
+      where: { publicCode: key },
+      include,
+    });
+  }
+
+  /** Unique short code for new clips; retries on the rare collision. */
+  private async allocatePublicCode(): Promise<string> {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const code = generatePublicCode();
+      const existing = await this.prisma.clip.findUnique({
+        where: { publicCode: code },
+        select: { id: true },
+      });
+      if (!existing) return code;
+    }
+    // Extremely unlikely; widen length once.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const code = generatePublicCode(8);
+      const existing = await this.prisma.clip.findUnique({
+        where: { publicCode: code },
+        select: { id: true },
+      });
+      if (!existing) return code;
+    }
+    throw new Error('Could not allocate unique clip publicCode');
+  }
+
+  /** Safety net if migration backfill missed rows (or partial deploys). */
+  private async backfillMissingPublicCodes(): Promise<void> {
+    try {
+      const missing = await this.prisma.clip.findMany({
+        where: { publicCode: '' },
+        select: { id: true },
+        take: 500,
+      });
+      // Prisma non-null string: empty shouldn't happen. Also catch pre-migrate
+      // by raw query if column exists with nulls — skip if schema enforces.
+      if (!missing.length) return;
+      for (const row of missing) {
+        const publicCode = await this.allocatePublicCode();
+        await this.prisma.clip.update({
+          where: { id: row.id },
+          data: { publicCode },
+        });
+      }
+      this.logger.log(`Backfilled publicCode for ${missing.length} clip(s)`);
+    } catch (e: unknown) {
+      // Column missing during first boot before migrate — ignore.
+      this.logger.debug(
+        `publicCode backfill skipped: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+  }
+
   private toPublic(row: {
     id: string;
+    publicCode: string;
     file: string;
     map: string | null;
     round: number | null;
@@ -275,6 +354,7 @@ export class ClipsService {
   }): PublicClip {
     return {
       id: row.id,
+      publicCode: row.publicCode,
       file: row.file,
       map: row.map,
       round: row.round,
@@ -289,6 +369,7 @@ export class ClipsService {
       reason: row.reason,
       matchDate: row.match?.matchDate?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
+      // Media hops stay on stable internal UUID paths.
       playUrl: `/api/clips/${row.id}/media`,
       posterUrl: `/api/clips/${row.id}/media?kind=poster`,
       player: row.player,
