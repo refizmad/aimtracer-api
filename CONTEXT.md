@@ -31,6 +31,7 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 
 - **Player** — a Steam identity allowed to use the clip product. Created only via a valid **invite** on first Steam login (returning players need no invite).
 - **Invite** — admin-created code (`POST /admin/invites` with `X-Admin-Token`). Friends-only; no public signup.
+- **Admin surface** — `X-Admin-Token` guard (ADR-0003). Endpoints: `GET /admin/stats`, `/admin/jobs`, `/admin/players`, `/admin/workers`, `/admin/invites` (+ create). aimtrace BFF stores the token in an httpOnly cookie after `/api/admin/login`.
 - **Session** — opaque token (`st_…`) stored hashed; aimtrace BFF holds httpOnly cookie and sends `Authorization: Bearer` / `X-Session-Token` to the API.
 - **Steam OpenID** — verified in this API (`/auth/steam/begin`, `/auth/steam/complete`), not in the Next app.
 - **Match history enrollment** — encrypted Steam match-history auth code + known share-code anchor. Status: `ACTIVE` / `DISABLED` / `INVALID_AUTH` (403) / `CHAIN_BROKEN` (412).

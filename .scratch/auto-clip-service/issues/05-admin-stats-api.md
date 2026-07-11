@@ -1,6 +1,6 @@
 # 05 — Admin stats + management API (M5, API side)
 
-Status: open
+Status: resolved
 Milestone: M5 (ROADMAP.md, workspace root)
 Blocked by: 02
 Counterpart: aimtrace GitHub issue "M5 (web)". Auth per ADR-0003 (existing X-Admin-Token guard).
@@ -17,5 +17,14 @@ Admin-token-guarded endpoints:
 ## Acceptance
 
 - Each panel of the admin dashboard has an endpoint returning correct numbers against seeded data; all reject a missing/wrong token.
+
+## Answer
+
+Landed 2026-07-11:
+
+- `AdminService` + endpoints: stats, jobs (failedOnly), players, workers, invites list/create
+- Rejects missing/wrong token (401)
+- aimtrace `/admin` + BFF login (httpOnly cookie) + proxy
+- Smoke: `scripts/verify-admin.js` / `scripts/debug-bff-admin.js`
 
 ## Comments

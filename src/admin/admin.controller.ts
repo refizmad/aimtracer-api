@@ -3,20 +3,61 @@ import {
   Post,
   Get,
   Body,
+  Query,
   HttpCode,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { JobStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuthGuard } from '../common/admin-auth.guard';
 import { randomToken } from '../common/crypto.util';
+import { AdminService } from './admin.service';
 
 @ApiTags('admin')
 @ApiSecurity('admin-token')
 @UseGuards(AdminAuthGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly admin: AdminService,
+  ) {}
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Overview stats for the admin dashboard' })
+  async stats() {
+    return this.admin.overview();
+  }
+
+  @Get('jobs')
+  @ApiOperation({ summary: 'Jobs list with optional status / failed-only filter' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'failedOnly', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async jobs(
+    @Query('status') status?: string,
+    @Query('failedOnly') failedOnly?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.admin.listJobs({
+      status: parseJobStatus(status),
+      failedOnly: failedOnly === '1' || failedOnly === 'true',
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @Get('players')
+  @ApiOperation({ summary: 'Per-player activity + enrollment + invite used' })
+  async players() {
+    return this.admin.listPlayers();
+  }
+
+  @Get('workers')
+  @ApiOperation({ summary: 'Worker health, current job, queue depth' })
+  async workers() {
+    return this.admin.listWorkers();
+  }
 
   @Post('invites')
   @HttpCode(201)
@@ -58,20 +99,28 @@ export class AdminController {
         useCount: invite.useCount,
         expiresAt: invite.expiresAt,
         createdAt: invite.createdAt,
+        path: `/invite/${invite.code}`,
       },
     };
   }
 
   @Get('invites')
-  @ApiOperation({ summary: 'List invite codes' })
+  @ApiOperation({ summary: 'List invite codes (which invite → which player)' })
   async listInvites() {
-    const invites = await this.prisma.invite.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
-        usedBy: { select: { steamId64: true, displayName: true } },
-      },
-    });
-    return { invites };
+    return this.admin.listInvites();
   }
+}
+
+function parseJobStatus(v?: string): JobStatus | undefined {
+  if (!v) return undefined;
+  const u = v.toUpperCase();
+  const allowed: JobStatus[] = [
+    'PENDING',
+    'LEASED',
+    'PROCESSING',
+    'COMPLETED',
+    'FAILED',
+    'CANCELLED',
+  ];
+  return allowed.includes(u as JobStatus) ? (u as JobStatus) : undefined;
 }
