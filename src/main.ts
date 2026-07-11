@@ -13,16 +13,28 @@ async function bootstrap() {
   // Before Nest DI: refuse a half-configured production process.
   assertProductionConfig(process.env);
 
+  const prod = isProduction(process.env);
+  const logLevel = (process.env.LOG_LEVEL || (prod ? 'info' : 'debug')).toLowerCase();
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
-      logger: true,
+      // Coolify / reverse proxies: rate-limit and access logs use real client IP.
+      trustProxy: true,
+      logger: {
+        level: logLevel,
+      },
     }),
+    {
+      // Nest application logger (services using Logger)
+      logger: prod
+        ? ['error', 'warn', 'log']
+        : ['error', 'warn', 'log', 'debug', 'verbose'],
+    },
   );
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 5500);
-  const prod = isProduction(process.env);
 
   app.useGlobalPipes(
     new ValidationPipe({

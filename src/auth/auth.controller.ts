@@ -7,6 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiSecurity } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { PlayerSessionGuard, AuthenticatedPlayer } from '../common/player-session.guard';
 import { CurrentPlayer } from '../common/current-player.decorator';
@@ -18,6 +19,7 @@ export class AuthController {
 
   @Post('steam/begin')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Start Steam OpenID login (friends invite optional for returning users)' })
   async begin(
     @Body()
@@ -36,6 +38,7 @@ export class AuthController {
 
   @Post('steam/complete')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete Steam OpenID after callback; issues session token' })
   async complete(
     @Body()

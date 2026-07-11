@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JobStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuthGuard } from '../common/admin-auth.guard';
@@ -18,6 +19,7 @@ import { AdminService } from './admin.service';
 @ApiSecurity('admin-token')
 @UseGuards(AdminAuthGuard)
 @Controller('admin')
+@Throttle({ default: { limit: 60, ttl: 60000 } })
 export class AdminController {
   constructor(
     private readonly prisma: PrismaService,

@@ -52,6 +52,8 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 - **Runbook** — `deploy/COOLIFY.md` (primary); compose+Caddy fallback in `deploy/RUNBOOK.md`.
 - **Worker** — not hosted in Coolify; current Windows PC with Steam/CS2, outbound HTTPS only.
 - **Backups** — Coolify DB backups and/or `deploy/backup-pg.sh`.
+- **Logging** — Nest `Logger` + HTTP access interceptor (`method path status ms ip`); health probes quiet; 5xx via global exception filter. `LOG_LEVEL` for Fastify/pino.
+- **Rate limiting** — `@nestjs/throttler` per client IP (`trustProxy`); default 120/min; tighter on auth/bootstrap; **skipped** for health and `X-Machine-Token` worker traffic.
 
 ## Related contexts
 

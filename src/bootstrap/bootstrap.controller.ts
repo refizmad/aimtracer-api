@@ -7,6 +7,7 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -14,6 +15,7 @@ import * as crypto from 'crypto';
 @ApiTags('bootstrap')
 @ApiSecurity('bootstrap-token')
 @Controller('bootstrap')
+@Throttle({ default: { limit: 10, ttl: 60000 } })
 export class BootstrapController {
   constructor(
     private readonly prisma: PrismaService,
