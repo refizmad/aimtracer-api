@@ -86,13 +86,17 @@ export class ClipsController {
 
   @Get(':id/media')
   @ApiOperation({
-    summary: 'Resolve a short-lived playable URL for a private clip object',
+    summary:
+      'Resolve a short-lived playable URL (video or JPEG poster via ?kind=poster)',
   })
+  @ApiQuery({ name: 'kind', required: false, description: 'video (default) | poster' })
   async media(
     @CurrentPlayer() _player: AuthenticatedPlayer,
     @Param('id') id: string,
+    @Query('kind') kind?: string,
   ) {
-    return this.clips.getPlayableMedia(id);
+    const k = kind?.toLowerCase() === 'poster' ? 'poster' : 'video';
+    return this.clips.getPlayableMedia(id, k);
   }
 
   @Get(':id')

@@ -76,21 +76,32 @@ export class S3MediaService {
   }
 
   /**
-   * Resolve a playable HTTPS URL for a clip file basename.
+   * Resolve a playable HTTPS URL for a clip file basename (mp4 or jpg poster).
    * Prefer live presign; otherwise dev fallback (local UI). Never throws for
    * missing S3 when a fallback exists.
    */
-  async getPlayableUrl(file: string, storedUrl?: string | null): Promise<{
+  async getPlayableUrl(
+    file: string,
+    storedUrl?: string | null,
+    opts?: { contentType?: string; allowDevFallback?: boolean },
+  ): Promise<{
     url: string;
     source: 'presign' | 'dev_fallback' | 'stored';
     expiresIn: number | null;
   }> {
+    const contentType =
+      opts?.contentType ||
+      (file.toLowerCase().endsWith('.jpg') || file.toLowerCase().endsWith('.jpeg')
+        ? 'image/jpeg'
+        : 'video/mp4');
+    const allowDevFallback = opts?.allowDevFallback !== false;
+
     if (this.configured && this.client && this.bucket) {
       const key = this.objectKeyForFile(file);
       const command = new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        ResponseContentType: 'video/mp4',
+        ResponseContentType: contentType,
       });
       const url = await getSignedUrl(this.client, command, {
         expiresIn: this.expiryS,
@@ -98,7 +109,8 @@ export class S3MediaService {
       return { url, source: 'presign', expiresIn: this.expiryS };
     }
 
-    if (this.devFallbackUrl) {
+    // Dev sample is a video — only use it for video requests.
+    if (allowDevFallback && contentType.startsWith('video/') && this.devFallbackUrl) {
       return {
         url: this.devFallbackUrl,
         source: 'dev_fallback',

@@ -43,8 +43,10 @@ export type PublicClip = {
   reason: string | null;
   matchDate: string | null;
   createdAt: string;
-  /** Same-origin BFF path the web app should use as <video src>. */
+  /** Same-origin BFF path for the video media hop. */
   playUrl: string;
+  /** Same-origin BFF path for the JPEG poster (convention: <file>.jpg in S3). */
+  posterUrl: string;
   player: {
     id: string;
     steamId64: string;
@@ -212,20 +214,39 @@ export class ClipsService {
     return this.toPublic(clip);
   }
 
-  async getPlayableMedia(id: string): Promise<{
+  async getPlayableMedia(
+    id: string,
+    kind: 'video' | 'poster' = 'video',
+  ): Promise<{
     url: string;
     source: string;
     expiresIn: number | null;
     file: string;
+    kind: 'video' | 'poster';
   }> {
     const clip = await this.prisma.clip.findUnique({ where: { id } });
     if (!clip) throw new NotFoundException('Clip not found');
+    if (kind === 'poster') {
+      const posterFile = posterFileFromClip(clip.file);
+      const resolved = await this.media.getPlayableUrl(posterFile, null, {
+        contentType: 'image/jpeg',
+        allowDevFallback: false,
+      });
+      return {
+        url: resolved.url,
+        source: resolved.source,
+        expiresIn: resolved.expiresIn,
+        file: posterFile,
+        kind: 'poster',
+      };
+    }
     const resolved = await this.media.getPlayableUrl(clip.file, clip.url);
     return {
       url: resolved.url,
       source: resolved.source,
       expiresIn: resolved.expiresIn,
       file: clip.file,
+      kind: 'video',
     };
   }
 
@@ -269,6 +290,7 @@ export class ClipsService {
       matchDate: row.match?.matchDate?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
       playUrl: `/api/clips/${row.id}/media`,
+      posterUrl: `/api/clips/${row.id}/media?kind=poster`,
       player: row.player,
     };
   }
@@ -304,4 +326,9 @@ export class ClipsService {
       },
     });
   }
+}
+
+/** Poster object basename convention: same as the mp4 with .jpg. */
+export function posterFileFromClip(file: string): string {
+  return file.replace(/\.mp4$/i, '.jpg');
 }
