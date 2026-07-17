@@ -237,7 +237,7 @@ export class MatchHistoryService {
 
   /**
    * Catch tip up to the newest Steam match.
-   * Seeds the last N recent matches (temp default 2) when far behind.
+   * Seeds the last N recent matches (default 1) when far behind.
    */
   async baselineNow(
     playerId: string,
@@ -292,9 +292,9 @@ export class MatchHistoryService {
     };
   }
 
-  /** TEMP for testing: how many recent matches to seed on enroll/baseline. Default 2. */
+  /** How many recent matches to seed on enroll/baseline/poll. Default 1. */
   private seedCount(): number {
-    return Math.max(1, numEnv(this.config, 'MATCH_HISTORY_SEED_COUNT', 2));
+    return Math.max(1, numEnv(this.config, 'MATCH_HISTORY_SEED_COUNT', 1));
   }
 
   /** Enqueue up to N seed clip jobs (idempotent). Returns how many were newly created. */
@@ -528,21 +528,19 @@ export class MatchHistoryService {
       return enqueued;
     }
 
-    // Upcoming games: enqueue every newly discovered match when the gap is small
-    // (normal play between polls). Large gaps = catch-up → only last N recent (seed count).
-    const catchUpThreshold = numEnv(this.config, 'MATCH_HISTORY_CATCHUP_THRESHOLD', 5);
+    // Always only enqueue the newest N matches (MATCH_HISTORY_SEED_COUNT, default 1).
+    // Older discovered codes are skipped and the tip advances past them so we never
+    // queue multi-day catch-up demos (was: enqueue all when gap ≤ 5).
     const seedN = this.seedCount();
-    const skipOlder = discovered.length > catchUpThreshold;
-    const toEnqueue = skipOlder ? discovered.slice(-seedN) : discovered;
-    // Older games we deliberately skip in a big catch-up — the tip may pass
-    // these (we never want to clip month-old demos).
-    const olderSkipped = skipOlder
-      ? discovered.slice(0, discovered.length - toEnqueue.length)
-      : [];
+    const toEnqueue = discovered.slice(-seedN);
+    const olderSkipped =
+      discovered.length > toEnqueue.length
+        ? discovered.slice(0, discovered.length - toEnqueue.length)
+        : [];
 
-    if (skipOlder) {
+    if (olderSkipped.length > 0) {
       this.logger.log(
-        `Poll catch-up for ${playerId}: found ${discovered.length} matches, enqueueing newest ${toEnqueue.length}`,
+        `Poll for ${playerId}: found ${discovered.length} matches, enqueueing newest ${toEnqueue.length} (skipping ${olderSkipped.length} older)`,
       );
     }
 

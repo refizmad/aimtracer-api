@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   EnrollmentStatus,
   JobStatus,
@@ -7,10 +11,17 @@ import {
 } from '../prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { JobsService } from '../jobs/jobs.service';
+
+/** Worker considered online if lastSeen within this window (ms). */
+const WORKER_ONLINE_MS = 120_000;
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jobs: JobsService,
+  ) {}
 
   async overview() {
     const [
@@ -205,10 +216,15 @@ export class AdminService {
   }
 
   async listWorkers() {
+    const now = Date.now();
     const [workers, queueDepth, leasedJobs] = await Promise.all([
       this.prisma.worker.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.job.count({
-        where: { status: { in: [JobStatus.PENDING, JobStatus.LEASED] } },
+        where: {
+          status: {
+            in: [JobStatus.PENDING, JobStatus.LEASED, JobStatus.PROCESSING],
+          },
+        },
       }),
       this.prisma.job.findMany({
         where: {
@@ -233,14 +249,18 @@ export class AdminService {
     return {
       queueDepth,
       workers: workers.map((w) => {
+        const lastSeenMs = w.lastSeenAt?.getTime() ?? 0;
+        const online =
+          w.enabled && lastSeenMs > 0 && now - lastSeenMs < WORKER_ONLINE_MS;
         const current = currentByWorker.get(w.id) ?? null;
-        return {
-          id: w.id,
-          name: w.name,
-          enabled: w.enabled,
-          lastSeenAt: w.lastSeenAt?.toISOString() ?? null,
-          createdAt: w.createdAt.toISOString(),
-          currentJob: current
+        // Only treat as "working" when the lease is still valid — a dead PC
+        // leaves PROCESSING rows forever until reclaim/cleanup runs.
+        const leaseLive =
+          current?.leaseExpiresAt != null &&
+          current.leaseExpiresAt.getTime() > now;
+        const activeJob = online && leaseLive ? current : null;
+        const staleJob =
+          current && !activeJob
             ? {
                 id: current.id,
                 status: current.status,
@@ -250,9 +270,229 @@ export class AdminService {
                 leaseExpiresAt: current.leaseExpiresAt?.toISOString() ?? null,
                 player: current.player,
               }
+            : null;
+
+        return {
+          id: w.id,
+          name: w.name,
+          enabled: w.enabled,
+          online,
+          lastSeenAt: w.lastSeenAt?.toISOString() ?? null,
+          createdAt: w.createdAt.toISOString(),
+          currentJob: activeJob
+            ? {
+                id: activeJob.id,
+                status: activeJob.status,
+                stage: activeJob.stage,
+                progress: activeJob.progress,
+                shareCode: activeJob.shareCode,
+                leaseExpiresAt: activeJob.leaseExpiresAt?.toISOString() ?? null,
+                player: activeJob.player,
+              }
             : null,
+          staleJob,
         };
       }),
+    };
+  }
+
+  async listMatches(opts?: { limit?: number; status?: MatchStatus }) {
+    const take = Math.min(100, Math.max(1, opts?.limit ?? 50));
+    const where: Prisma.MatchWhereInput = {};
+    if (opts?.status) where.status = opts.status;
+
+    const matches = await this.prisma.match.findMany({
+      where,
+      orderBy: { matchDate: 'desc' },
+      take,
+      include: {
+        player: {
+          select: { id: true, steamId64: true, displayName: true },
+        },
+        job: {
+          select: {
+            id: true,
+            status: true,
+            stage: true,
+            progress: true,
+            error: true,
+            attempts: true,
+            maxAttempts: true,
+            source: true,
+            createdAt: true,
+          },
+        },
+        _count: { select: { clips: true } },
+      },
+    });
+
+    return {
+      matches: matches.map((m) => ({
+        id: m.id,
+        shareCode: m.shareCode,
+        status: m.status,
+        map: m.map,
+        demoName: m.demoName,
+        matchDate: m.matchDate.toISOString(),
+        discoveredAt: m.discoveredAt.toISOString(),
+        clipCount: m._count.clips,
+        player: m.player,
+        job: m.job
+          ? {
+              id: m.job.id,
+              status: m.job.status,
+              stage: m.job.stage,
+              progress: m.job.progress,
+              error: m.job.error,
+              attempts: m.job.attempts,
+              maxAttempts: m.job.maxAttempts,
+              source: m.job.source,
+              createdAt: m.job.createdAt.toISOString(),
+            }
+          : null,
+      })),
+    };
+  }
+
+  async listClips(opts?: { limit?: number; matchId?: string }) {
+    const take = Math.min(100, Math.max(1, opts?.limit ?? 50));
+    const where: Prisma.ClipWhereInput = {};
+    if (opts?.matchId) where.matchId = opts.matchId;
+
+    const clips = await this.prisma.clip.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        player: {
+          select: { id: true, steamId64: true, displayName: true },
+        },
+        match: {
+          select: { id: true, shareCode: true, status: true, map: true },
+        },
+      },
+    });
+
+    return {
+      clips: clips.map((c) => ({
+        id: c.id,
+        publicCode: c.publicCode,
+        file: c.file,
+        url: c.url,
+        sizeBytes: c.sizeBytes,
+        clipType: c.clipType,
+        map: c.map,
+        kills: c.kills,
+        demoName: c.demoName,
+        createdAt: c.createdAt.toISOString(),
+        player: c.player,
+        match: c.match,
+      })),
+    };
+  }
+
+  /**
+   * Delete a match row, its clips, and cancel any non-terminal job.
+   * Does not delete S3 objects (keys may remain until bucket lifecycle).
+   */
+  async deleteMatch(id: string) {
+    const match = await this.prisma.match.findUnique({
+      where: { id },
+      include: { job: true, _count: { select: { clips: true } } },
+    });
+    if (!match) throw new NotFoundException('Match not found');
+
+    let cancelledJob: string | null = null;
+    if (
+      match.job &&
+      match.job.status !== 'COMPLETED' &&
+      match.job.status !== 'FAILED' &&
+      match.job.status !== 'CANCELLED'
+    ) {
+      await this.jobs.cancelJob(
+        match.job.id,
+        'Cancelled: match deleted from admin',
+      );
+      cancelledJob = match.job.id;
+    }
+
+    const clipsDeleted = await this.prisma.clip.deleteMany({
+      where: { matchId: id },
+    });
+    await this.prisma.match.delete({ where: { id } });
+
+    return {
+      deleted: true,
+      matchId: id,
+      shareCode: match.shareCode,
+      clipsDeleted: clipsDeleted.count,
+      cancelledJob,
+    };
+  }
+
+  async deleteClip(id: string) {
+    const clip = await this.prisma.clip.findUnique({ where: { id } });
+    if (!clip) throw new NotFoundException('Clip not found');
+    await this.prisma.clip.delete({ where: { id } });
+    return {
+      deleted: true,
+      clipId: id,
+      file: clip.file,
+      note: 'DB row removed; S3 object may still exist until lifecycle cleanup',
+    };
+  }
+
+  /**
+   * Cancel every non-terminal auto_match_history job except the newest per
+   * player (optional), or all of them. Used to clear a bad history backlog.
+   */
+  async cancelStaleAutoJobs(opts?: { keepNewestPerPlayer?: boolean }) {
+    const keepNewest = opts?.keepNewestPerPlayer !== false;
+    const active = await this.prisma.job.findMany({
+      where: {
+        source: 'auto_match_history',
+        status: {
+          in: [
+            JobStatus.PENDING,
+            JobStatus.LEASED,
+            JobStatus.PROCESSING,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, playerId: true, shareCode: true, createdAt: true },
+    });
+
+    const keep = new Set<string>();
+    if (keepNewest) {
+      const seenPlayer = new Set<string>();
+      for (const j of active) {
+        const key = j.playerId || j.id;
+        if (!seenPlayer.has(key)) {
+          seenPlayer.add(key);
+          keep.add(j.id);
+        }
+      }
+    }
+
+    let cancelled = 0;
+    for (const j of active) {
+      if (keep.has(j.id)) continue;
+      try {
+        await this.jobs.cancelJob(
+          j.id,
+          'Cancelled: stale auto-history backlog (admin)',
+        );
+        cancelled += 1;
+      } catch {
+        /* already terminal */
+      }
+    }
+
+    return {
+      scanned: active.length,
+      kept: keep.size,
+      cancelled,
     };
   }
 

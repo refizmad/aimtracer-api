@@ -385,6 +385,47 @@ export class JobsService {
   }
 
   /**
+   * Admin cancel: terminal CANCELLED for any non-terminal job so a dead worker
+   * or stale history queue does not keep re-leasing work.
+   */
+  async cancelJob(id: string, reason?: string): Promise<Job> {
+    const job = await this.prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (
+      job.status === 'COMPLETED' ||
+      job.status === 'FAILED' ||
+      job.status === 'CANCELLED'
+    ) {
+      throw new BadRequestException(
+        `Job is already terminal (${job.status})`,
+      );
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.job.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
+        error: reason?.trim() || 'Cancelled from admin dashboard',
+        completedAt: now,
+        leasedBy: null,
+        leasedAt: null,
+        leaseExpiresAt: null,
+        stage: 'cancelled',
+        message: 'Cancelled by admin',
+      },
+    });
+
+    await this.prisma.match.updateMany({
+      where: { jobId: id, status: { in: [MatchStatus.DETECTED, MatchStatus.DOWNLOADED] } },
+      data: { status: MatchStatus.FAILED },
+    });
+
+    this.logger.log(`Job ${id} cancelled by admin (was ${job.status})`);
+    return updated;
+  }
+
+  /**
    * Manual admin retry of a job that exhausted its attempts: reset the
    * attempt counter and put it back in the queue. Also flips the Match
    * projection back from FAILED so the dashboard shows it in-flight again.

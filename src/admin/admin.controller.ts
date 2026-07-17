@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
   Query,
@@ -10,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { JobStatus } from '../prisma/client';
+import { JobStatus, MatchStatus } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuthGuard } from '../common/admin-auth.guard';
 import { randomToken } from '../common/crypto.util';
@@ -60,6 +61,87 @@ export class AdminController {
   async retryJob(@Param('id') id: string) {
     const job = await this.jobsService.retryJob(id);
     return { job };
+  }
+
+  @Post('jobs/:id/cancel')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Cancel a non-terminal job (PENDING/LEASED/PROCESSING)',
+  })
+  async cancelJob(
+    @Param('id') id: string,
+    @Body() body?: { reason?: string },
+  ) {
+    const job = await this.jobsService.cancelJob(id, body?.reason);
+    return { job };
+  }
+
+  @Post('jobs/reclaim-stale')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Release expired leases back to PENDING and fail exhausted attempts',
+  })
+  async reclaimStale() {
+    return this.jobsService.cleanupStaleLeases();
+  }
+
+  @Post('jobs/cancel-stale-auto')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Cancel backlog auto_match_history jobs (keeps newest per player by default)',
+  })
+  async cancelStaleAuto(
+    @Body() body?: { keepNewestPerPlayer?: boolean },
+  ) {
+    return this.admin.cancelStaleAutoJobs({
+      keepNewestPerPlayer: body?.keepNewestPerPlayer,
+    });
+  }
+
+  @Get('matches')
+  @ApiOperation({ summary: 'List demos/matches for admin management' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async matches(
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.admin.listMatches({
+      status: parseMatchStatus(status),
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @Delete('matches/:id')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Delete a match (demo), its clips, cancel non-terminal job',
+  })
+  async deleteMatch(@Param('id') id: string) {
+    return this.admin.deleteMatch(id);
+  }
+
+  @Get('clips')
+  @ApiOperation({ summary: 'List rendered clips for admin management' })
+  @ApiQuery({ name: 'matchId', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async clips(
+    @Query('matchId') matchId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.admin.listClips({
+      matchId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @Delete('clips/:id')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Delete a clip row (S3 object may remain)' })
+  async deleteClip(@Param('id') id: string) {
+    return this.admin.deleteClip(id);
   }
 
   @Get('players')
@@ -173,4 +255,16 @@ function parseJobStatus(v?: string): JobStatus | undefined {
     'CANCELLED',
   ];
   return allowed.includes(u as JobStatus) ? (u as JobStatus) : undefined;
+}
+
+function parseMatchStatus(v?: string): MatchStatus | undefined {
+  if (!v) return undefined;
+  const u = v.toUpperCase();
+  const allowed: MatchStatus[] = [
+    'DETECTED',
+    'DOWNLOADED',
+    'RENDERED',
+    'FAILED',
+  ];
+  return allowed.includes(u as MatchStatus) ? (u as MatchStatus) : undefined;
 }
