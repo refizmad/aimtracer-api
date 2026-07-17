@@ -311,7 +311,6 @@ export class MatchHistoryService {
           steamId64: opts.steamId64,
           shareCode,
           source: JobSource.auto_match_history,
-          options: { minKills: 4 },
         });
         if (res.created) created += 1;
       } catch (e: any) {
@@ -564,7 +563,6 @@ export class MatchHistoryService {
         steamId64: enr.player.steamId64,
         shareCode,
         source: JobSource.auto_match_history,
-        options: { minKills: 4 },
       });
       if (created) enqueued += 1;
       settledTip = shareCode;

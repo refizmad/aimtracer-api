@@ -151,7 +151,9 @@ model Match {
   /// Best-known match time. Discovery/submission time for now; a better
   /// source (demo header) can overwrite it later.
   matchDate    DateTime    @map("match_date")
-  jobId        String?     @unique @map("job_id")
+  /// Several matches (one per player) may share one job: players who played
+  /// the SAME game are merged into a single render (see enqueueClipForPlayer).
+  jobId        String?     @map("job_id")
   discoveredAt DateTime    @default(now()) @map("discovered_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
@@ -160,6 +162,7 @@ model Match {
   clips  Clip[]
 
   @@unique([playerId, shareCode])
+  @@index([jobId])
   @@index([playerId, jobId])
   @@index([playerId, status])
   @@map("matches")
@@ -243,7 +246,7 @@ model Job {
 
   worker    Worker?         @relation(fields: [leasedBy], references: [id])
   player    Player?         @relation(fields: [playerId], references: [id], onDelete: SetNull)
-  match     Match?
+  matches   Match[]
   clips     Clip[]
 
   @@index([status, leaseExpiresAt])

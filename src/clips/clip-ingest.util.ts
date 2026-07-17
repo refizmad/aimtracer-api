@@ -66,6 +66,31 @@ const json = (v: unknown): Prisma.InputJsonValue | undefined =>
   v !== null && typeof v === 'object' ? (v as Prisma.InputJsonValue) : undefined;
 
 /**
+ * Ownership columns for one clip of a (possibly multi-player) job.
+ *
+ * A merged job renders clips for several players in the same match, so blanket
+ * `job.playerId` attribution would hand every clip to whichever player queued
+ * first. Each sidecar entry names its player by steamid (names are spoofable;
+ * the clipper's --trusted gate guarantees the steamid is one we asked for), so
+ * resolve per entry: steamid → player → that player's Match row. Falls back to
+ * the job's own player/first match for legacy results without a steamid.
+ */
+export function resolveClipOwnership(
+  clipPlayerSteamId: string | undefined,
+  job: { id: string; playerId: string | null },
+  matches: Array<{ id: string; playerId: string }>,
+  playerIdBySteamId: Map<string, string>,
+): { playerId: string | null; matchId: string | null; jobId: string } {
+  const ownerId =
+    (clipPlayerSteamId && playerIdBySteamId.get(clipPlayerSteamId)) ||
+    job.playerId ||
+    null;
+  const ownMatch =
+    (ownerId && matches.find((m) => m.playerId === ownerId)) || matches[0] || null;
+  return { playerId: ownerId, matchId: ownMatch?.id ?? null, jobId: job.id };
+}
+
+/**
  * Map one worker result entry to Clip column data. Returns null for entries
  * that can't identify a clip (no usable `file`) — the caller skips those.
  * Defensive by design: the result JSON crossed a machine boundary.

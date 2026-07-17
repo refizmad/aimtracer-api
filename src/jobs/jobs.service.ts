@@ -4,6 +4,7 @@ import { Job, JobSource, JobStatus, MatchStatus, Prisma } from '../prisma/client
 import { ConfigService } from '@nestjs/config';
 import { normalizeShareCode } from '../common/sharecode.util';
 import { ClipsService } from '../clips/clips.service';
+import { ClipJobPayload, withTrustedSteamId } from './job-payload.util';
 
 /** Worker stages that imply the demo reached the render box (anything past
  * download). Keep in sync with cs2-clip worker.py STAGE_MARKERS. */
@@ -272,7 +273,15 @@ export class JobsService {
 
   /**
    * Unified enqueue for manual + auto. Idempotent on (playerId, shareCode).
-   * Always sets trustedSteamIds to exactly [steamId64] (never empty).
+   *
+   * Cross-player merge: a share code identifies a MATCH, not a player, so
+   * when another player's job for the same code is still PENDING this player
+   * joins it (their steamid is added to trustedSteamIds and their Match row
+   * links the same job) — one render serves everyone who played the game,
+   * instead of the worker rendering the same demo once per enrolled player.
+   * Once a job is LEASED its payload has been read by the worker, so a late
+   * arrival gets their own job (the worker's demo cache makes the second
+   * download free; only their clips render).
    */
   async enqueueClipForPlayer(data: {
     playerId: string;
@@ -305,14 +314,18 @@ export class JobsService {
     const payload = {
       shareCode,
       trustedSteamIds: [data.steamId64],
-      options: data.options ?? { minKills: 4 },
+      // Parse/render tuning is owned by the clipper's own defaults
+      // (clipper.py constants + clipper_config.json); only explicit
+      // per-job overrides belong in the payload.
+      options: data.options ?? {},
     };
     if (!payload.trustedSteamIds.length) {
       throw new BadRequestException('trustedSteamIds must be non-empty');
     }
 
-    // Transaction: create job + upsert the Match row with jobId
-    const job = await this.prisma.$transaction(async (tx) => {
+    // Transaction: merge into a pending same-match job, or create job +
+    // upsert the Match row with jobId.
+    const outcome = await this.prisma.$transaction(async (tx) => {
       // Re-check inside txn
       const again = await tx.match.findUnique({
         where: {
@@ -321,7 +334,51 @@ export class JobsService {
       });
       if (again?.jobId) {
         const j = await tx.job.findUnique({ where: { id: again.jobId } });
-        if (j) return j;
+        if (j) return { job: j, merged: false };
+      }
+
+      const mergeable = await tx.job.findFirst({
+        where: {
+          shareCode,
+          type: data.type ?? 'clip',
+          status: JobStatus.PENDING,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (mergeable) {
+        const mergedPayload = withTrustedSteamId(
+          mergeable.payload as ClipJobPayload,
+          data.steamId64,
+        );
+        // Guard the write on the job still being PENDING: a worker leasing
+        // it concurrently blocks on the row lock, and whichever commit wins,
+        // the payload the worker reads is consistent. count 0 = just leased
+        // -> fall through and create this player's own job.
+        const claimed = await tx.job.updateMany({
+          where: { id: mergeable.id, status: JobStatus.PENDING },
+          // Already-trusted steamid (mergedPayload null) still writes the
+          // existing payload: the write is what makes the PENDING guard
+          // return a count, and an empty update-set would be invalid.
+          data: {
+            payload: (mergedPayload ?? mergeable.payload) as Prisma.InputJsonValue,
+          },
+        });
+        if (claimed.count === 1) {
+          await tx.match.upsert({
+            where: {
+              playerId_shareCode: { playerId: data.playerId, shareCode },
+            },
+            create: {
+              playerId: data.playerId,
+              shareCode,
+              jobId: mergeable.id,
+              matchDate: new Date(),
+            },
+            update: { jobId: mergeable.id },
+          });
+          const j = await tx.job.findUnique({ where: { id: mergeable.id } });
+          return { job: j!, merged: true };
+        }
       }
 
       const created = await tx.job.create({
@@ -352,11 +409,18 @@ export class JobsService {
         },
       });
 
-      return created;
+      return { job: created, merged: false };
     });
 
+    if (outcome.merged) {
+      this.logger.log(
+        `Merged player ${data.playerId} (${data.steamId64}) into pending job ` +
+          `${outcome.job.id} for ${shareCode} — one render serves the match`,
+      );
+    }
+
     const wasNew = !existing?.jobId;
-    return { job, created: wasNew };
+    return { job: outcome.job, created: wasNew };
   }
 
   async getJob(id: string): Promise<Job> {

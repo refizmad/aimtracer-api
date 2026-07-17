@@ -1,4 +1,8 @@
-import { clipRowFromResultEntry, WorkerClipEntry } from './clip-ingest.util';
+import {
+  clipRowFromResultEntry,
+  resolveClipOwnership,
+  WorkerClipEntry,
+} from './clip-ingest.util';
 
 const fullSidecar: WorkerClipEntry = {
   file: 'refi_4k_mirage_001.mp4',
@@ -91,5 +95,62 @@ describe('clipRowFromResultEntry', () => {
     expect(row!.killEvents).toBeUndefined();
     expect(row!.kills).toBeUndefined();
     expect(row!.durationS).toBeUndefined();
+  });
+});
+
+describe('resolveClipOwnership', () => {
+  // A merged two-player job: A queued first (job.playerId = A), B joined.
+  const job = { id: 'job-1', playerId: 'player-A' };
+  const matches = [
+    { id: 'match-A', playerId: 'player-A' },
+    { id: 'match-B', playerId: 'player-B' },
+  ];
+  const bySteamId = new Map([
+    ['765A', 'player-A'],
+    ['765B', 'player-B'],
+  ]);
+
+  it('attributes a clip to its own player and match by sidecar steamid', () => {
+    expect(resolveClipOwnership('765B', job, matches, bySteamId)).toEqual({
+      playerId: 'player-B',
+      matchId: 'match-B',
+      jobId: 'job-1',
+    });
+    expect(resolveClipOwnership('765A', job, matches, bySteamId)).toEqual({
+      playerId: 'player-A',
+      matchId: 'match-A',
+      jobId: 'job-1',
+    });
+  });
+
+  it('falls back to the job player for legacy results without a steamid', () => {
+    expect(resolveClipOwnership(undefined, job, matches, bySteamId)).toEqual({
+      playerId: 'player-A',
+      matchId: 'match-A',
+      jobId: 'job-1',
+    });
+  });
+
+  it('unknown steamid falls back to the job player, first match', () => {
+    expect(resolveClipOwnership('765X', job, matches, bySteamId)).toEqual({
+      playerId: 'player-A',
+      matchId: 'match-A',
+      jobId: 'job-1',
+    });
+  });
+
+  it('admin job without player or matches yields null ownership', () => {
+    expect(
+      resolveClipOwnership(undefined, { id: 'j', playerId: null }, [], new Map()),
+    ).toEqual({ playerId: null, matchId: null, jobId: 'j' });
+  });
+
+  it('owner without their own match row uses the first linked match', () => {
+    const only = [{ id: 'match-A', playerId: 'player-A' }];
+    expect(resolveClipOwnership('765B', job, only, bySteamId)).toEqual({
+      playerId: 'player-B',
+      matchId: 'match-A',
+      jobId: 'job-1',
+    });
   });
 });

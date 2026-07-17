@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { Job, Match, MatchStatus, Prisma } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { clipRowFromResultEntry, WorkerClipEntry } from './clip-ingest.util';
+import {
+  clipRowFromResultEntry,
+  resolveClipOwnership,
+  WorkerClipEntry,
+} from './clip-ingest.util';
 import { generatePublicCode, isClipUuid } from './public-code.util';
 import { S3MediaService } from './s3-media.service';
 
@@ -77,25 +81,32 @@ export class ClipsService implements OnModuleInit {
   }
 
   /**
-   * Turn a COMPLETED job's `result.clips[]` into Clip rows and mark its Match
-   * RENDERED. Upserts by `file` (the S3 key — a re-render overwrites there
-   * too, so the DB mirrors that). Tolerates pre-M2 results ({file,url} only)
-   * and jobs without player/match linkage (admin-created).
+   * Turn a COMPLETED job's `result.clips[]` into Clip rows and mark its
+   * Match(es) RENDERED. Upserts by `file` (the S3 key — a re-render
+   * overwrites there too, so the DB mirrors that). Tolerates pre-M2 results
+   * ({file,url} only) and jobs without player/match linkage (admin-created).
+   *
+   * A merged job serves several players of the same match; each clip is
+   * attributed to its own player via the sidecar steamid
+   * (resolveClipOwnership), and every linked Match advances — a player with
+   * no clipworthy moments still had their match processed.
    */
   async ingestCompletedJob(job: Job): Promise<{ ingested: number }> {
     const result = job.result as { clips?: WorkerClipEntry[] } | null;
     const entries = Array.isArray(result?.clips) ? result!.clips! : [];
-    const match = await this.findJobMatch(job);
+    const matches = await this.findJobMatches(job);
+    const playerIdBySteamId = await this.mapPlayersBySteamId(entries);
 
     let ingested = 0;
     for (const entry of entries) {
       const row = clipRowFromResultEntry(entry);
       if (!row) continue;
-      const ownership = {
-        playerId: job.playerId,
-        matchId: match?.id ?? null,
-        jobId: job.id,
-      };
+      const ownership = resolveClipOwnership(
+        row.playerSteamId,
+        job,
+        matches,
+        playerIdBySteamId,
+      );
       const publicCode = await this.allocatePublicCode();
       await this.prisma.clip.upsert({
         where: { file: row.file },
@@ -106,10 +117,10 @@ export class ClipsService implements OnModuleInit {
       ingested++;
     }
 
-    if (match) {
-      const fromClips = entries
-        .map(clipRowFromResultEntry)
-        .filter((r): r is NonNullable<typeof r> => !!r);
+    const fromClips = entries
+      .map(clipRowFromResultEntry)
+      .filter((r): r is NonNullable<typeof r> => !!r);
+    for (const match of matches) {
       await this.advanceMatch(match, MatchStatus.RENDERED, {
         map: fromClips.find((r) => r.map)?.map,
         demoName: fromClips.find((r) => r.demoName)?.demoName,
@@ -118,10 +129,11 @@ export class ClipsService implements OnModuleInit {
     return { ingested };
   }
 
-  /** Mark the job's match FAILED (unless it already rendered earlier). */
+  /** Mark the job's match(es) FAILED (unless already rendered earlier). */
   async markJobMatchFailed(job: Job): Promise<void> {
-    const match = await this.findJobMatch(job);
-    if (match) await this.advanceMatch(match, MatchStatus.FAILED);
+    for (const match of await this.findJobMatches(job)) {
+      await this.advanceMatch(match, MatchStatus.FAILED);
+    }
   }
 
   /**
@@ -130,10 +142,30 @@ export class ClipsService implements OnModuleInit {
    * heartbeat can skip stage strings the stdout pump never saw).
    */
   async markJobMatchDownloaded(job: Job): Promise<void> {
-    const match = await this.findJobMatch(job);
-    if (match && match.status === MatchStatus.DETECTED) {
-      await this.advanceMatch(match, MatchStatus.DOWNLOADED);
+    for (const match of await this.findJobMatches(job)) {
+      if (match.status === MatchStatus.DETECTED) {
+        await this.advanceMatch(match, MatchStatus.DOWNLOADED);
+      }
     }
+  }
+
+  /** playerId by steamId64 for the players named in a result's sidecars. */
+  private async mapPlayersBySteamId(
+    entries: WorkerClipEntry[],
+  ): Promise<Map<string, string>> {
+    const steamIds = [
+      ...new Set(
+        entries
+          .map((e) => (typeof e?.player_steamid === 'string' ? e.player_steamid : ''))
+          .filter((s) => s.length > 0),
+      ),
+    ];
+    if (!steamIds.length) return new Map();
+    const players = await this.prisma.player.findMany({
+      where: { steamId64: { in: steamIds } },
+      select: { id: true, steamId64: true },
+    });
+    return new Map(players.map((p) => [p.steamId64, p.id]));
   }
 
   /** Bulk FAILED for jobs the lease cleaner just exhausted. */
@@ -378,9 +410,14 @@ export class ClipsService implements OnModuleInit {
     };
   }
 
-  private async findJobMatch(job: Job): Promise<Match | null> {
-    if (!job.playerId || !job.shareCode) return null;
-    return this.prisma.match.findUnique({
+  /** Every Match linked to this job (a merged job has one per player).
+   * Falls back to the (playerId, shareCode) lookup for legacy rows created
+   * before jobId linking. */
+  private async findJobMatches(job: Job): Promise<Match[]> {
+    const byJob = await this.prisma.match.findMany({ where: { jobId: job.id } });
+    if (byJob.length) return byJob;
+    if (!job.playerId || !job.shareCode) return [];
+    const legacy = await this.prisma.match.findUnique({
       where: {
         playerId_shareCode: {
           playerId: job.playerId,
@@ -388,6 +425,7 @@ export class ClipsService implements OnModuleInit {
         },
       },
     });
+    return legacy ? [legacy] : [];
   }
 
   /** Forward-only status update; also fills map/demoName when learned. */

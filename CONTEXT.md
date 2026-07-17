@@ -26,6 +26,8 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 - Leasing is concurrency-safe via `FOR UPDATE SKIP LOCKED` — two workers never claim the same job.
 - An expired lease is reclaimable and counts an attempt; `maxAttempts` bounds retries before `FAILED`.
 - Every worker request is authenticated by a valid, enabled machine token.
+- **A share code identifies a match, not a player**: enqueuing a code that already has a `PENDING` job merges the player into it (`enqueueClipForPlayer` — trustedSteamIds union via `withTrustedSteamId`, the player's Match row links the same job; `Match.jobId` is not unique) so one render serves everyone who played the game. The merge write is guarded on the job still being `PENDING`; once leased, the payload has been read, and a later player gets their own job (worker demo cache makes the re-download free).
+- Job payloads carry only explicit per-job option overrides; parse/render tuning defaults are owned by the clipper (cs2-clip constants + `clipper_config.json`), so backend numbers can't silently drift from the tuned defaults.
 
 ## Auth (friends beta)
 
@@ -41,7 +43,7 @@ A NestJS + Fastify backend that coordinates CS2 clip rendering across external w
 
 - **Match** — a player's CS2 match keyed by share code (`Match` model; evolved from the old `MatchShareCode` discovery row). Lifecycle: `DETECTED` → `DOWNLOADED` → `RENDERED` / `FAILED`. `matchDate` is discovery/submit time for the beta (not yet demo-header time).
 - **Clip** — a rendered highlight row (`Clip` model), upserted by `file` (mp4 basename = S3 object key / manifest dedup key) when a worker reports `COMPLETED`. Metadata (map, kills, type, score, …) comes from the clipper sidecar via `result.clips[]`.
-- **Ingestion** — `ClipsService.ingestCompletedJob` runs as a non-fatal side effect of `PATCH /worker/jobs/:id` (job row remains source of truth). Stage reports past download advance Match to `DOWNLOADED`.
+- **Ingestion** — `ClipsService.ingestCompletedJob` runs as a non-fatal side effect of `PATCH /worker/jobs/:id` (job row remains source of truth). Each clip is attributed to its own player by sidecar `player_steamid` (`resolveClipOwnership` — a merged job renders several players' clips), and **all** matches linked to the job advance; stage reports past download advance them to `DOWNLOADED`.
 - **Clip URL** — bucket stays private (ADR-0004). Durable identity is `Clip.file`. `GET /clips/:id/media` (session) mints a short-lived presigned GET via `S3MediaService` when `S3_*` is set; non-production falls back to `CLIP_MEDIA_DEV_FALLBACK_URL` so local UI works without real credentials. `Clip.url` may hold a worker-supplied URL that expires.
 - **Clip list** — `GET /clips` (all friends, ADR-0002) and `GET /clips/mine` with filters (map, minKills, type, sort, pagination).
 - **Match list** — `GET /matches/mine` returns the session player's matches only (map, date, status DETECTED→DOWNLOADED→RENDERED/FAILED, clip count, linked job), plus a status summary.
