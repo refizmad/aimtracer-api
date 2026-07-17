@@ -11,6 +11,7 @@ import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { timingSafeEqualString } from '../common/crypto.util';
 
 @ApiTags('bootstrap')
 @ApiSecurity('bootstrap-token')
@@ -42,7 +43,11 @@ export class BootstrapController {
       this.config.get<string>('BOOTSTRAP_TOKEN') ||
       this.config.get<string>('ADMIN_TOKEN') ||
       '';
-    if (!expected || !bootstrapToken || bootstrapToken !== expected) {
+    if (
+      !expected ||
+      !bootstrapToken ||
+      !timingSafeEqualString(bootstrapToken, expected)
+    ) {
       throw new UnauthorizedException('Invalid bootstrap token');
     }
 

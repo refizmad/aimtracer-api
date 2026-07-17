@@ -6,7 +6,7 @@ import { clientIp } from './request-logging.interceptor';
 /**
  * Rate-limit guard with:
  * - trust of X-Forwarded-For (Coolify / reverse proxy)
- * - skip health + worker machine-token traffic (long-poll lease must not 429)
+ * - skip health + `/worker/*` only (long-poll lease must not 429; header alone is not enough)
  */
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
@@ -19,8 +19,10 @@ export class AppThrottlerGuard extends ThrottlerGuard {
       return true;
     }
 
-    // Authenticated workers poll/lease frequently; limit elsewhere (session/admin/auth).
-    if (typeof req.headers['x-machine-token'] === 'string') {
+    // Only skip throttling for worker routes. Do NOT skip whenever a client
+    // merely sends X-Machine-Token — that would let anyone bypass rate limits
+    // on auth/admin/public endpoints with a dummy header.
+    if (path === '/worker' || path.startsWith('/worker/')) {
       return true;
     }
 
