@@ -12,6 +12,7 @@ import {
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobsService } from '../jobs/jobs.service';
+import { normalizeShareCode } from '../common/sharecode.util';
 
 /** Worker considered online if lastSeen within this window (ms). */
 const WORKER_ONLINE_MS = 120_000;
@@ -296,15 +297,23 @@ export class AdminService {
     };
   }
 
+  /**
+   * List demos for admin manage UI, **merged by share code**.
+   *
+   * Several Match rows can exist for one CS2 game (one per trusted player).
+   * The dashboard should show each demo once, with all players listed, so
+   * Reclip / Delete act on the whole match rather than one account's row.
+   */
   async listMatches(opts?: { limit?: number; status?: MatchStatus }) {
     const take = Math.min(100, Math.max(1, opts?.limit ?? 50));
     const where: Prisma.MatchWhereInput = {};
     if (opts?.status) where.status = opts.status;
 
-    const matches = await this.prisma.match.findMany({
+    // Over-fetch then group: several players share one demo.
+    const rows = await this.prisma.match.findMany({
       where,
       orderBy: { matchDate: 'desc' },
-      take,
+      take: Math.min(500, take * 8),
       include: {
         player: {
           select: { id: true, steamId64: true, displayName: true },
@@ -326,31 +335,170 @@ export class AdminService {
       },
     });
 
+    type JobSnap = NonNullable<(typeof rows)[number]['job']>;
+    type PlayerSnap = (typeof rows)[number]['player'];
+    type Group = {
+      id: string;
+      matchIds: string[];
+      shareCode: string;
+      status: MatchStatus;
+      map: string | null;
+      demoName: string | null;
+      matchDate: Date;
+      discoveredAt: Date;
+      clipCount: number;
+      players: PlayerSnap[];
+      job: JobSnap | null;
+    };
+
+    const groups = new Map<string, Group>();
+    const statusRank: Record<MatchStatus, number> = {
+      RENDERED: 4,
+      DOWNLOADED: 3,
+      DETECTED: 2,
+      FAILED: 1,
+    };
+    const jobActiveRank = (s: string | undefined) => {
+      if (s === 'PROCESSING' || s === 'LEASED') return 3;
+      if (s === 'PENDING') return 2;
+      if (s === 'COMPLETED') return 1;
+      return 0;
+    };
+
+    for (const m of rows) {
+      let g = groups.get(m.shareCode);
+      if (!g) {
+        g = {
+          id: m.id,
+          matchIds: [m.id],
+          shareCode: m.shareCode,
+          status: m.status,
+          map: m.map,
+          demoName: m.demoName,
+          matchDate: m.matchDate,
+          discoveredAt: m.discoveredAt,
+          clipCount: m._count.clips,
+          players: m.player ? [m.player] : [],
+          job: m.job,
+        };
+        groups.set(m.shareCode, g);
+        continue;
+      }
+      g.matchIds.push(m.id);
+      g.clipCount += m._count.clips;
+      if (m.map && !g.map) g.map = m.map;
+      if (m.demoName && !g.demoName) g.demoName = m.demoName;
+      if (m.matchDate > g.matchDate) g.matchDate = m.matchDate;
+      if (m.discoveredAt < g.discoveredAt) g.discoveredAt = m.discoveredAt;
+      if (statusRank[m.status] > statusRank[g.status]) g.status = m.status;
+      if (m.player) {
+        const seen = g.players.some((p) => p.steamId64 === m.player!.steamId64);
+        if (!seen) g.players.push(m.player);
+      }
+      if (
+        m.job &&
+        (!g.job ||
+          jobActiveRank(m.job.status) > jobActiveRank(g.job.status) ||
+          (jobActiveRank(m.job.status) === jobActiveRank(g.job.status) &&
+            m.job.createdAt > g.job.createdAt))
+      ) {
+        g.job = m.job;
+      }
+    }
+
+    const merged = [...groups.values()]
+      .sort((a, b) => b.matchDate.getTime() - a.matchDate.getTime())
+      .slice(0, take);
+
     return {
-      matches: matches.map((m) => ({
-        id: m.id,
-        shareCode: m.shareCode,
-        status: m.status,
-        map: m.map,
-        demoName: m.demoName,
-        matchDate: m.matchDate.toISOString(),
-        discoveredAt: m.discoveredAt.toISOString(),
-        clipCount: m._count.clips,
-        player: m.player,
-        job: m.job
+      matches: merged.map((g) => ({
+        id: g.id,
+        matchIds: g.matchIds,
+        shareCode: g.shareCode,
+        status: g.status,
+        map: g.map,
+        demoName: g.demoName,
+        matchDate: g.matchDate.toISOString(),
+        discoveredAt: g.discoveredAt.toISOString(),
+        clipCount: g.clipCount,
+        // Backward-compatible single player (first) + full roster.
+        player: g.players[0] ?? null,
+        players: g.players,
+        job: g.job
           ? {
-              id: m.job.id,
-              status: m.job.status,
-              stage: m.job.stage,
-              progress: m.job.progress,
-              error: m.job.error,
-              attempts: m.job.attempts,
-              maxAttempts: m.job.maxAttempts,
-              source: m.job.source,
-              createdAt: m.job.createdAt.toISOString(),
+              id: g.job.id,
+              status: g.job.status,
+              stage: g.job.stage,
+              progress: g.job.progress,
+              error: g.job.error,
+              attempts: g.job.attempts,
+              maxAttempts: g.job.maxAttempts,
+              source: g.job.source,
+              createdAt: g.job.createdAt.toISOString(),
             }
           : null,
       })),
+    };
+  }
+
+  /**
+   * Delete every Match row (and their clips) for a share code — one demo
+   * across all roster players. Cancels any non-terminal job for that code.
+   */
+  async deleteDemoByShareCode(rawShareCode: string) {
+    const shareCode = normalizeShareCode(rawShareCode);
+    if (!shareCode) throw new BadRequestException('Invalid share code');
+
+    const matches = await this.prisma.match.findMany({
+      where: { shareCode },
+      include: { job: true },
+    });
+    if (matches.length === 0) throw new NotFoundException('Match not found');
+
+    const jobIds = new Set<string>();
+    for (const m of matches) {
+      if (m.jobId) jobIds.add(m.jobId);
+    }
+    const jobs = await this.prisma.job.findMany({
+      where: { shareCode },
+      select: { id: true, status: true },
+    });
+    for (const j of jobs) jobIds.add(j.id);
+
+    const cancelled: string[] = [];
+    for (const jid of jobIds) {
+      const j = await this.prisma.job.findUnique({ where: { id: jid } });
+      if (
+        j &&
+        j.status !== 'COMPLETED' &&
+        j.status !== 'FAILED' &&
+        j.status !== 'CANCELLED'
+      ) {
+        try {
+          await this.jobs.cancelJob(
+            jid,
+            'Cancelled: demo deleted from admin',
+          );
+          cancelled.push(jid);
+        } catch {
+          /* already terminal */
+        }
+      }
+    }
+
+    const matchIds = matches.map((m) => m.id);
+    const clipsDeleted = await this.prisma.clip.deleteMany({
+      where: { matchId: { in: matchIds } },
+    });
+    await this.prisma.match.deleteMany({ where: { id: { in: matchIds } } });
+
+    return {
+      deleted: true,
+      shareCode,
+      matchIds,
+      matchesDeleted: matchIds.length,
+      clipsDeleted: clipsDeleted.count,
+      cancelledJobs: cancelled,
     };
   }
 

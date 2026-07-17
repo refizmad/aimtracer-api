@@ -4,7 +4,11 @@ import { Job, JobSource, JobStatus, MatchStatus, Prisma } from '../prisma/client
 import { ConfigService } from '@nestjs/config';
 import { normalizeShareCode } from '../common/sharecode.util';
 import { ClipsService } from '../clips/clips.service';
-import { ClipJobPayload, withTrustedSteamId } from './job-payload.util';
+import {
+  ClipJobPayload,
+  trustedSteamIdsOf,
+  withTrustedSteamId,
+} from './job-payload.util';
 
 /** Worker stages that imply the demo reached the render box (anything past
  * download). Keep in sync with cs2-clip worker.py STAGE_MARKERS. */
@@ -526,6 +530,198 @@ export class JobsService {
 
     this.logger.log(`Job ${id} manually requeued (was ${job.status})`);
     return updated;
+  }
+
+  /**
+   * Admin "Reclip": force a fresh render of a match for every roster player
+   * who has a Match row for that share code.
+   *
+   * - Unions all those players' steamids into trustedSteamIds (so one CS2
+   *   session covers refi + bucky + friends, not one job per account).
+   * - Works on COMPLETED / FAILED / CANCELLED (requeue) and PENDING
+   *   (refresh trusted + keep queued). Refuses LEASED/PROCESSING.
+   * - Collapses duplicate jobs for the same share code onto one PENDING job
+   *   and points every Match row at it.
+   */
+  async reclipByShareCode(rawShareCode: string): Promise<Job> {
+    const shareCode = normalizeShareCode(rawShareCode);
+    if (!shareCode) {
+      throw new BadRequestException('Invalid share code');
+    }
+
+    const matches = await this.prisma.match.findMany({
+      where: { shareCode },
+      include: {
+        player: { select: { id: true, steamId64: true, displayName: true } },
+        job: true,
+      },
+    });
+
+    const jobsByShare = await this.prisma.job.findMany({
+      where: { shareCode },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Jobs may be linked via Match.jobId even if shareCode column is null
+    // on legacy rows.
+    const jobMap = new Map<string, Job>();
+    for (const j of jobsByShare) jobMap.set(j.id, j);
+    for (const m of matches) {
+      if (m.job) jobMap.set(m.job.id, m.job);
+    }
+    const jobs = [...jobMap.values()];
+
+    if (matches.length === 0 && jobs.length === 0) {
+      throw new NotFoundException(`No match/job for ${shareCode}`);
+    }
+
+    const trusted = new Set<string>();
+    for (const m of matches) {
+      if (m.player?.steamId64) trusted.add(m.player.steamId64);
+    }
+    for (const j of jobs) {
+      for (const sid of trustedSteamIdsOf(j.payload as ClipJobPayload)) {
+        trusted.add(sid);
+      }
+    }
+    const trustedSteamIds = [...trusted];
+    if (trustedSteamIds.length === 0) {
+      throw new BadRequestException(
+        'No trusted SteamIDs found for this match (no linked players)',
+      );
+    }
+
+    const busy = jobs.find(
+      (j) =>
+        j.status === JobStatus.LEASED || j.status === JobStatus.PROCESSING,
+    );
+    if (busy) {
+      throw new BadRequestException(
+        `Match is currently rendering (job ${busy.id} is ${busy.status}); ` +
+          `wait for it to finish or cancel it first`,
+      );
+    }
+
+    const basePayload: ClipJobPayload = {
+      shareCode,
+      trustedSteamIds,
+      options: {},
+    };
+    // Keep options from the newest job if present.
+    const newest = jobs[0];
+    if (newest?.payload && typeof newest.payload === 'object') {
+      const prev = newest.payload as ClipJobPayload;
+      if (prev.options && typeof prev.options === 'object') {
+        basePayload.options = prev.options;
+      }
+    }
+
+    const pending = jobs.find((j) => j.status === JobStatus.PENDING);
+    const requeueable = jobs.find(
+      (j) =>
+        j.status === JobStatus.COMPLETED ||
+        j.status === JobStatus.FAILED ||
+        j.status === JobStatus.CANCELLED,
+    );
+
+    let target: Job;
+    if (pending) {
+      target = await this.prisma.job.update({
+        where: { id: pending.id },
+        data: {
+          payload: basePayload as Prisma.InputJsonValue,
+          shareCode,
+          message: 'Reclip: trusted list refreshed; waiting for worker',
+          error: null,
+        },
+      });
+    } else if (requeueable) {
+      target = await this.prisma.job.update({
+        where: { id: requeueable.id },
+        data: {
+          status: JobStatus.PENDING,
+          attempts: 0,
+          progress: 0,
+          stage: 'queued',
+          message: 'Reclip requested from admin dashboard',
+          error: null,
+          completedAt: null,
+          leasedBy: null,
+          leasedAt: null,
+          leaseExpiresAt: null,
+          payload: basePayload as Prisma.InputJsonValue,
+          shareCode,
+        },
+      });
+    } else {
+      // No prior job — create one owned by the first match player if any.
+      const ownerId = matches[0]?.playerId ?? null;
+      target = await this.prisma.job.create({
+        data: {
+          type: 'clip',
+          source: JobSource.manual,
+          playerId: ownerId,
+          shareCode,
+          payload: basePayload as Prisma.InputJsonValue,
+          maxAttempts: 3,
+          status: JobStatus.PENDING,
+          stage: 'queued',
+          message: 'Reclip: new job from admin dashboard',
+        },
+      });
+    }
+
+    // Point every Match row for this demo at the single reclip job and reset
+    // terminal statuses so the UI shows in-flight again.
+    if (matches.length > 0) {
+      await this.prisma.match.updateMany({
+        where: { shareCode },
+        data: {
+          jobId: target.id,
+          status: MatchStatus.DETECTED,
+        },
+      });
+    }
+
+    // Cancel other PENDING jobs for the same share code so the worker does
+    // not launch CS2 twice for one demo.
+    for (const j of jobs) {
+      if (j.id === target.id) continue;
+      if (j.status === JobStatus.PENDING) {
+        try {
+          await this.cancelJob(
+            j.id,
+            'Superseded by admin reclip of the same match',
+          );
+        } catch {
+          /* already terminal */
+        }
+      }
+    }
+
+    this.logger.log(
+      `Reclip ${shareCode}: job ${target.id} PENDING with ` +
+        `${trustedSteamIds.length} trusted steamid(s), ` +
+        `${matches.length} match row(s)`,
+    );
+    return target;
+  }
+
+  /** Reclip by job id — resolves share code then reclipByShareCode. */
+  async reclipJob(id: string): Promise<Job> {
+    const job = await this.prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundException('Job not found');
+    const fromPayload =
+      job.payload &&
+      typeof job.payload === 'object' &&
+      typeof (job.payload as ClipJobPayload).shareCode === 'string'
+        ? String((job.payload as ClipJobPayload).shareCode)
+        : null;
+    const shareCode = job.shareCode || fromPayload;
+    if (!shareCode) {
+      throw new BadRequestException('Job has no share code to reclip');
+    }
+    return this.reclipByShareCode(shareCode);
   }
 
   /**

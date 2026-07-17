@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   Get,
@@ -63,6 +64,33 @@ export class AdminController {
     return { job };
   }
 
+  @Post('jobs/:id/reclip')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Force re-render a match (COMPLETED/FAILED/CANCELLED/PENDING). ' +
+      'Unions trusted SteamIDs from every player who has that share code.',
+  })
+  async reclipJob(@Param('id') id: string) {
+    const job = await this.jobsService.reclipJob(id);
+    return { job };
+  }
+
+  @Post('matches/reclip')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Force re-render by share code: one PENDING job, all roster players trusted',
+  })
+  async reclipMatch(@Body() body: { shareCode?: string }) {
+    const shareCode = body?.shareCode?.trim();
+    if (!shareCode) {
+      throw new BadRequestException('shareCode is required');
+    }
+    const job = await this.jobsService.reclipByShareCode(shareCode);
+    return { job };
+  }
+
   @Post('jobs/:id/cancel')
   @HttpCode(200)
   @ApiOperation({
@@ -112,6 +140,16 @@ export class AdminController {
       status: parseMatchStatus(status),
       limit: limit ? parseInt(limit, 10) : undefined,
     });
+  }
+
+  @Delete('matches/by-share/:shareCode')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Delete a demo for every player (all Match rows for the share code)',
+  })
+  async deleteDemoByShare(@Param('shareCode') shareCode: string) {
+    return this.admin.deleteDemoByShareCode(shareCode);
   }
 
   @Delete('matches/:id')
