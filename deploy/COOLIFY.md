@@ -76,10 +76,22 @@ Backups: enable Coolify DB backups if available; otherwise schedule `pg_dump` fr
 | Setting | Value |
 |---|---|
 | Source | Git repo → directory / base: `aimtrace-api` (or monorepo root with Dockerfile path) |
-| Build | Dockerfile → `aimtrace-api/Dockerfile` |
+| Build pack | **Dockerfile** (recommended) → `Dockerfile` at repo root |
 | Port | **5500** |
 | Domain | `api.aimtracer.com` (HTTPS on) |
 | Healthcheck | Prefer **`GET /health/ready`** (DB up); fallback `GET /health` |
+
+**Node version (required):** Prisma 7 only supports **Node 20.19+ / 22.12+ / 24+**.  
+If Coolify uses **Nixpacks** (auto-detect) instead of the Dockerfile, it may pick an older Node and fail at `npm ci` with:
+
+```text
+Prisma only supports Node.js versions 20.19+, 22.12+, 24.0+.
+```
+
+Fix in Coolify UI:
+
+1. **Preferred:** Build Pack = **Dockerfile**, Dockerfile location = `/Dockerfile` (this repo).
+2. **Or Nixpacks:** set Node to **22** (or env `NIXPACKS_NODE_VERSION=22`). Repo includes `nixpacks.toml`, `.nvmrc`, and `package.json` `engines.node`.
 
 ### Environment variables (api)
 

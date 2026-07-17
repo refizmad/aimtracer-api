@@ -1,13 +1,15 @@
-# Production image for aimtrace-api (NestJS + Prisma).
+# Production image for aimtrace-api (NestJS + Prisma 7).
+# Prisma 7 requires Node 20.19+ / 22.12+ / 24+.
 # Build: docker build -t aimtrace-api .
 # Run via deploy/docker-compose.yml (preferred).
+# Coolify: set Build Pack = Dockerfile (not Nixpacks).
 
-FROM node:22-bookworm-slim AS deps
+FROM node:22.16-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 # postinstall runs prisma generate; schema is not present yet in this stage.
 RUN npm ci --ignore-scripts
 
@@ -19,7 +21,7 @@ COPY src ./src
 # Generate client into src/generated, then compile Nest app (includes generated TS).
 RUN npx prisma generate && npm run build
 
-FROM node:22-bookworm-slim AS runner
+FROM node:22.16-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5500
@@ -28,7 +30,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 # Prod deps + prisma CLI (needed for `migrate deploy` on boot).

@@ -1,0 +1,12 @@
+# Coolify Nixpacks (if not using Dockerfile). Prisma 7 needs Node 22.12+ / 20.19+ / 24+.
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
+[phases.setup]
+nixPkgs = ["...", "openssl"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npm run build"]
+
+[start]
+cmd = "npx prisma migrate deploy && node dist/src/main.js"

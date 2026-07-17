@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "NestJS Fastify backend for aimtracer clip jobs + worker polling",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
