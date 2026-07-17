@@ -103,6 +103,7 @@ PORT=5500
 DATABASE_URL=postgresql://…@<postgres-service>:5432/…?schema=public
 
 # Steam OpenID allowlist = public WEB origin (not the API domain)
+# Public WEB origin only (not api.*). Steam OpenID return + CORS.
 AUTH_RETURN_BASE_URL=https://aimtracer.com
 
 ADMIN_TOKEN=<long random>

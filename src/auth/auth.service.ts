@@ -272,10 +272,16 @@ export class AuthService {
       // Prefer absolute returnTo from the BFF; fall back to first allowed origin.
       const target = new URL(returnTo, allowedOrigins[0]);
       if (!allowedOrigins.includes(target.origin)) {
+        // BFF behind Coolify often sends http://localhost:3000. Force the
+        // configured public web origin so Steam never redirects to localhost.
+        const forced = new URL(allowedOrigins[0]);
+        forced.pathname = '/api/auth/steam/callback';
+        forced.search = '';
+        forced.hash = '';
         this.logger.warn(
-          `Rejected returnTo origin ${target.origin}; allowed: ${allowedOrigins.join(', ')}`,
+          `Rewriting returnTo origin ${target.origin} -> ${forced.origin} (AUTH_RETURN_BASE_URL)`,
         );
-        throw new Error('origin mismatch');
+        return forced.toString();
       }
       // Force Steam callback path (don't let clients pick arbitrary paths).
       target.pathname = '/api/auth/steam/callback';
