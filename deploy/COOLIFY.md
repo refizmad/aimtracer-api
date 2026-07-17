@@ -170,13 +170,15 @@ CLIPPER_BACKEND_URL=http://api:5500
 # If internal DNS fails in your Coolify build, fall back to public:
 # CLIPPER_BACKEND_URL=https://api.aimtracer.com
 
-# Optional site URL for SEO/metadata if you use it
-# NEXT_PUBLIC_SITE_URL=https://aimtracer.com
+# Required: public browser origin (Steam OpenID return_to + post-login redirects).
+# Without this, Next behind Coolify often emits http://localhost:3000 to Steam.
+NEXT_PUBLIC_SITE_URL=https://aimtracer.com
+SITE_URL=https://aimtracer.com
 
 # Do NOT set NEXT_PUBLIC_CLIPPER_BACKEND_URL in production
 ```
 
-Steam login flow: browser → `https://aimtracer.com/api/auth/steam/*` → API OpenID with `return_to` on the **web** origin. That is why `AUTH_RETURN_BASE_URL` on the API must be `https://aimtracer.com`.
+Steam login flow: browser → `https://aimtracer.com/api/auth/steam/*` → API OpenID with `return_to` on the **web** origin. That is why `AUTH_RETURN_BASE_URL` on the API must be `https://aimtracer.com` (not localhost, not the api domain).
 
 Admin: open `https://aimtracer.com/admin`, enter the same `ADMIN_TOKEN` (stored in httpOnly cookie by the BFF; BFF calls api with `X-Admin-Token`).
 
