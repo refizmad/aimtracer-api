@@ -519,31 +519,48 @@ export class MatchHistoryService {
       await sleep(1000);
     }
 
-    // Always move tip to the newest known code so we never re-walk history.
-    await this.prisma.matchHistoryEnrollment.update({
-      where: { playerId },
-      data: { lastShareCode: tip, lastPolledAt: new Date(), lastError: null },
-    });
-
-    if (discovered.length === 0) return enqueued;
+    if (discovered.length === 0) {
+      // Nothing new; the tip already sits at the newest known code.
+      await this.prisma.matchHistoryEnrollment.update({
+        where: { playerId },
+        data: { lastShareCode: tip, lastPolledAt: new Date(), lastError: null },
+      });
+      return enqueued;
+    }
 
     // Upcoming games: enqueue every newly discovered match when the gap is small
     // (normal play between polls). Large gaps = catch-up → only last N recent (seed count).
     const catchUpThreshold = numEnv(this.config, 'MATCH_HISTORY_CATCHUP_THRESHOLD', 5);
     const seedN = this.seedCount();
-    const toEnqueue =
-      discovered.length > catchUpThreshold
-        ? discovered.slice(-seedN)
-        : discovered;
+    const skipOlder = discovered.length > catchUpThreshold;
+    const toEnqueue = skipOlder ? discovered.slice(-seedN) : discovered;
+    // Older games we deliberately skip in a big catch-up — the tip may pass
+    // these (we never want to clip month-old demos).
+    const olderSkipped = skipOlder
+      ? discovered.slice(0, discovered.length - toEnqueue.length)
+      : [];
 
-    if (discovered.length > catchUpThreshold) {
+    if (skipOlder) {
       this.logger.log(
         `Poll catch-up for ${playerId}: found ${discovered.length} matches, enqueueing newest ${toEnqueue.length}`,
       );
     }
 
+    // Advance the tip only up to the last game we actually settle (enqueued, or
+    // deliberately skipped as too-old). If the per-player daily cap stops us
+    // mid-list we must NOT move the tip past games we still owe the player, or
+    // the next poll would never revisit them. Held games retry next tick;
+    // enqueueClipForPlayer is idempotent, so re-walking is safe.
+    let settledTip = olderSkipped.length
+      ? olderSkipped[olderSkipped.length - 1]
+      : enr.lastShareCode;
+    let capped = false;
+
     for (const shareCode of toEnqueue) {
-      if (!(await this.canAutoEnqueue(playerId))) break;
+      if (!(await this.canAutoEnqueue(playerId))) {
+        capped = true;
+        break;
+      }
       const { created } = await this.jobs.enqueueClipForPlayer({
         playerId,
         steamId64: enr.player.steamId64,
@@ -552,7 +569,23 @@ export class MatchHistoryService {
         options: { minKills: 4 },
       });
       if (created) enqueued += 1;
+      settledTip = shareCode;
     }
+
+    if (capped) {
+      this.logger.warn(
+        `Daily auto-clip cap reached for ${playerId}; holding tip at ${settledTip} so newer games retry next poll`,
+      );
+    }
+
+    await this.prisma.matchHistoryEnrollment.update({
+      where: { playerId },
+      data: {
+        lastShareCode: capped ? settledTip : tip,
+        lastPolledAt: new Date(),
+        lastError: null,
+      },
+    });
 
     return enqueued;
   }
