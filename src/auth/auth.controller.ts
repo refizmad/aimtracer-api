@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Param,
   HttpCode,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,16 @@ import { CurrentPlayer } from '../common/current-player.decorator';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Get('invites/:code')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({
+    summary:
+      'Public invite status for /invite/:code (ok | used | expired | invalid)',
+  })
+  async inviteStatus(@Param('code') code: string) {
+    return this.authService.getInviteStatus(decodeURIComponent(code || ''));
+  }
 
   @Post('steam/begin')
   @HttpCode(200)

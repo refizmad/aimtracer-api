@@ -32,7 +32,24 @@ export class AuthService {
   ) {}
 
   /**
+   * Public invite check for the /invite/:code page.
+   * Does not leak note, usedBy, or remaining capacity beyond redeemable vs not.
+   */
+  async getInviteStatus(rawCode: string): Promise<{
+    status: 'ok' | 'used' | 'expired' | 'invalid';
+    code: string;
+  }> {
+    const code = (rawCode || '').trim();
+    if (!code) {
+      return { status: 'invalid', code: '' };
+    }
+    const invite = await this.prisma.invite.findUnique({ where: { code } });
+    return { status: classifyInvite(invite), code };
+  }
+
+  /**
    * Start Steam OpenID. returnTo is the *web* callback URL (BFF), not the API.
+   * If an invite code is supplied, it must still be redeemable (not used/expired).
    */
   async beginSteamLogin(opts: {
     inviteCode?: string;
@@ -43,6 +60,12 @@ export class AuthService {
       throw new BadRequestException(
         'AUTH_RETURN_BASE_URL is not configured (public web origin, e.g. http://127.0.0.1:3000)',
       );
+    }
+
+    const inviteCode = opts.inviteCode?.trim() || null;
+    if (inviteCode) {
+      // Used links must not start Steam login (even for returning players).
+      this.throwIfInviteNotRedeemable(await this.getInviteStatus(inviteCode));
     }
 
     // Validate against allowlist; keep the browser's host (localhost vs 127.0.0.1).
@@ -56,7 +79,7 @@ export class AuthService {
     await this.prisma.authState.create({
       data: {
         state,
-        inviteCode: opts.inviteCode?.trim() || null,
+        inviteCode,
         returnTo: callbackWithState,
         expiresAt: new Date(Date.now() + STATE_TTL_MS),
       },
@@ -187,24 +210,46 @@ export class AuthService {
     await this.prisma.session.delete({ where: { id: sessionId } }).catch(() => {});
   }
 
+  private throwIfInviteNotRedeemable(status: {
+    status: 'ok' | 'used' | 'expired' | 'invalid';
+  }): void {
+    if (status.status === 'ok') return;
+    if (status.status === 'used') {
+      throw new ForbiddenException({
+        code: 'INVITE_EXHAUSTED',
+        message: 'This invite has already been used',
+      });
+    }
+    if (status.status === 'expired') {
+      throw new ForbiddenException({
+        code: 'INVITE_EXPIRED',
+        message: 'This invite has expired',
+      });
+    }
+    throw new ForbiddenException({
+      code: 'INVITE_INVALID',
+      message: 'This invite is not valid',
+    });
+  }
+
   private async consumeInviteAndCreatePlayer(code: string, steamId64: string) {
     const invite = await this.prisma.invite.findUnique({ where: { code } });
     if (!invite) {
       throw new ForbiddenException({
         code: 'INVITE_INVALID',
-        message: 'Invite code is not valid',
+        message: 'This invite is not valid',
       });
     }
     if (invite.expiresAt && invite.expiresAt.getTime() <= Date.now()) {
       throw new ForbiddenException({
         code: 'INVITE_EXPIRED',
-        message: 'Invite code has expired',
+        message: 'This invite has expired',
       });
     }
     if (invite.useCount >= invite.maxUses) {
       throw new ForbiddenException({
         code: 'INVITE_EXHAUSTED',
-        message: 'Invite code has already been used',
+        message: 'This invite has already been used',
       });
     }
 
@@ -220,7 +265,7 @@ export class AuthService {
       if (updated.count === 0) {
         throw new ForbiddenException({
           code: 'INVITE_EXHAUSTED',
-          message: 'Invite code has already been used',
+          message: 'This invite has already been used',
         });
       }
 
@@ -320,6 +365,21 @@ export class AuthService {
       return null;
     }
   }
+}
+
+/** Pure invite state for tests + getInviteStatus. */
+export function classifyInvite(
+  invite: {
+    useCount: number;
+    maxUses: number;
+    expiresAt: Date | null;
+  } | null,
+  nowMs: number = Date.now(),
+): 'ok' | 'used' | 'expired' | 'invalid' {
+  if (!invite) return 'invalid';
+  if (invite.expiresAt && invite.expiresAt.getTime() <= nowMs) return 'expired';
+  if (invite.useCount >= invite.maxUses) return 'used';
+  return 'ok';
 }
 
 function toPublicPlayer(p: {
