@@ -33,15 +33,16 @@ RUN apt-get update \
 COPY package.json package-lock.json .npmrc ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-# Prod deps + prisma CLI (needed for `migrate deploy` on boot).
+# Prod deps include prisma CLI for migrate deploy on boot.
 # Skip postinstall generate: runtime uses compiled client from dist.
-RUN npm ci --omit=dev --ignore-scripts \
-  && npm install prisma@7.8.0 --no-save --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY --from=build /app/dist ./dist
 COPY deploy/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh \
-  && chown -R node:node /app
+  && chown -R node:node /app \
+  && test -f prisma/migrations/migration_lock.toml \
+  && test -d prisma/migrations/20260711000000_init
 
 USER node
 EXPOSE 5500

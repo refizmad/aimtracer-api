@@ -135,7 +135,16 @@ openssl rand -hex 32
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-The image entrypoint runs `prisma migrate deploy` then starts the API. First deploy needs a reachable `DATABASE_URL`.
+The image **entrypoint** runs `prisma migrate deploy` then starts the API. First deploy needs a reachable `DATABASE_URL`.
+
+**Migrations ship in the repo** under `prisma/migrations/` (init, match/clip models, publicCode, retry defaults) plus `migration_lock.toml`.
+
+If tables are missing after deploy:
+
+1. Coolify must use **Build Pack = Dockerfile** (not a bare `npm start` that skips the entrypoint).
+2. Confirm boot logs contain `[entrypoint] migrations applied`.
+3. Confirm `DATABASE_URL` points at the Coolify Postgres service (internal host).
+4. Or one-shot: open an API container shell and run `npx prisma migrate deploy`.
 
 ### After first successful api deploy
 
