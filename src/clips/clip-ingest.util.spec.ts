@@ -101,9 +101,11 @@ describe('clipRowFromResultEntry', () => {
 describe('resolveClipOwnership', () => {
   // A merged two-player job: A queued first (job.playerId = A), B joined.
   const job = { id: 'job-1', playerId: 'player-A' };
+  const dateA = new Date('2026-07-10T20:00:00Z');
+  const dateB = new Date('2026-07-10T20:00:05Z');
   const matches = [
-    { id: 'match-A', playerId: 'player-A' },
-    { id: 'match-B', playerId: 'player-B' },
+    { id: 'match-A', playerId: 'player-A', matchDate: dateA },
+    { id: 'match-B', playerId: 'player-B', matchDate: dateB },
   ];
   const bySteamId = new Map([
     ['765A', 'player-A'],
@@ -115,11 +117,13 @@ describe('resolveClipOwnership', () => {
       playerId: 'player-B',
       matchId: 'match-B',
       jobId: 'job-1',
+      matchDate: dateB,
     });
     expect(resolveClipOwnership('765A', job, matches, bySteamId)).toEqual({
       playerId: 'player-A',
       matchId: 'match-A',
       jobId: 'job-1',
+      matchDate: dateA,
     });
   });
 
@@ -128,6 +132,7 @@ describe('resolveClipOwnership', () => {
       playerId: 'player-A',
       matchId: 'match-A',
       jobId: 'job-1',
+      matchDate: dateA,
     });
   });
 
@@ -136,21 +141,23 @@ describe('resolveClipOwnership', () => {
       playerId: 'player-A',
       matchId: 'match-A',
       jobId: 'job-1',
+      matchDate: dateA,
     });
   });
 
   it('admin job without player or matches yields null ownership', () => {
     expect(
       resolveClipOwnership(undefined, { id: 'j', playerId: null }, [], new Map()),
-    ).toEqual({ playerId: null, matchId: null, jobId: 'j' });
+    ).toEqual({ playerId: null, matchId: null, jobId: 'j', matchDate: null });
   });
 
   it('owner without their own match row uses the first linked match', () => {
-    const only = [{ id: 'match-A', playerId: 'player-A' }];
+    const only = [{ id: 'match-A', playerId: 'player-A', matchDate: dateA }];
     expect(resolveClipOwnership('765B', job, only, bySteamId)).toEqual({
       playerId: 'player-B',
       matchId: 'match-A',
       jobId: 'job-1',
+      matchDate: dateA,
     });
   });
 });

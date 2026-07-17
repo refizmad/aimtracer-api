@@ -78,16 +78,27 @@ const json = (v: unknown): Prisma.InputJsonValue | undefined =>
 export function resolveClipOwnership(
   clipPlayerSteamId: string | undefined,
   job: { id: string; playerId: string | null },
-  matches: Array<{ id: string; playerId: string }>,
+  matches: Array<{ id: string; playerId: string; matchDate?: Date }>,
   playerIdBySteamId: Map<string, string>,
-): { playerId: string | null; matchId: string | null; jobId: string } {
+): {
+  playerId: string | null;
+  matchId: string | null;
+  jobId: string;
+  /** Denormalized onto the Clip row — the gallery's "Newest" sort key. */
+  matchDate: Date | null;
+} {
   const ownerId =
     (clipPlayerSteamId && playerIdBySteamId.get(clipPlayerSteamId)) ||
     job.playerId ||
     null;
   const ownMatch =
     (ownerId && matches.find((m) => m.playerId === ownerId)) || matches[0] || null;
-  return { playerId: ownerId, matchId: ownMatch?.id ?? null, jobId: job.id };
+  return {
+    playerId: ownerId,
+    matchId: ownMatch?.id ?? null,
+    jobId: job.id,
+    matchDate: ownMatch?.matchDate ?? null,
+  };
 }
 
 /**

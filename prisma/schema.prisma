@@ -198,6 +198,11 @@ model Clip {
   playerSteamId String?  @map("player_steamid")
   demoName      String?  @map("demo_name")
   reason        String?
+  /// Denormalized Match.matchDate (set at ingestion): the gallery's "Newest"
+  /// sorts by when the MATCH was played, not when the clip rendered — ingest
+  /// order scatters whenever an older game renders later. Nullable: legacy /
+  /// admin clips without a match sink to the bottom (nulls last).
+  matchDate     DateTime? @map("match_date")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -209,6 +214,7 @@ model Clip {
   @@index([matchId])
   @@index([kills])
   @@index([clipType])
+  @@index([matchDate, createdAt])
   @@map("clips")
 }
 

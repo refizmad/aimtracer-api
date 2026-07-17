@@ -78,6 +78,7 @@ export class ClipsService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.backfillMissingPublicCodes();
+    await this.backfillMissingClipMatchDates();
   }
 
   /**
@@ -205,14 +206,22 @@ export class ClipsService implements OnModuleInit {
       where.kills = { gte: q.minKills };
     }
 
-    // Newest first by default (createdAt = ingest time — when the clip appeared).
-    // id secondary keeps a stable order when timestamps collide.
+    // "Newest" means the most recent MATCH first, not the most recent render:
+    // ingest order scatters whenever an older game renders later (enrollment
+    // seeds, retries, multi-player merges), which put stale clips on top.
+    // Primary key is the denormalized clip.matchDate (nulls last — legacy /
+    // admin clips sink), then ingest time, then id so same-batch ties stay
+    // stable (the uuid alone is random, which shuffled same-second clips).
     const orderBy: Prisma.ClipOrderByWithRelationInput[] =
       sort === 'kills'
         ? [{ kills: order }, { createdAt: 'desc' }, { id: 'desc' }]
         : sort === 'score'
           ? [{ score: order }, { createdAt: 'desc' }, { id: 'desc' }]
-          : [{ createdAt: order }, { id: 'desc' }];
+          : [
+              { matchDate: { sort: order, nulls: 'last' } },
+              { createdAt: order },
+              { id: 'desc' },
+            ];
 
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.clip.count({ where }),
@@ -362,6 +371,28 @@ export class ClipsService implements OnModuleInit {
     }
   }
 
+  /**
+   * Copy Match.matchDate onto Clip.matchDate when the column is still null.
+   * Migration does this once; this covers partial deploys / rows linked later.
+   */
+  private async backfillMissingClipMatchDates(): Promise<void> {
+    try {
+      const updated = await this.prisma.$executeRaw`
+        UPDATE "clips" c
+        SET "match_date" = m."match_date"
+        FROM "matches" m
+        WHERE c."match_id" = m."id" AND c."match_date" IS NULL
+      `;
+      if (typeof updated === 'number' && updated > 0) {
+        this.logger.log(`Backfilled matchDate on ${updated} clip(s)`);
+      }
+    } catch (e: unknown) {
+      this.logger.debug(
+        `clip matchDate backfill skipped: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+  }
+
   private toPublic(row: {
     id: string;
     publicCode: string;
@@ -377,6 +408,7 @@ export class ClipsService implements OnModuleInit {
     playerSteamId: string | null;
     demoName: string | null;
     reason: string | null;
+    matchDate: Date | null;
     createdAt: Date;
     player: {
       id: string;
@@ -401,7 +433,7 @@ export class ClipsService implements OnModuleInit {
       playerSteamId: row.playerSteamId,
       demoName: row.demoName,
       reason: row.reason,
-      matchDate: row.match?.matchDate?.toISOString() ?? null,
+      matchDate: (row.matchDate ?? row.match?.matchDate)?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
       // Media hops stay on stable internal UUID paths.
       playUrl: `/api/clips/${row.id}/media`,
