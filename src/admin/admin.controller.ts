@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Param,
   Query,
   HttpCode,
   UseGuards,
@@ -14,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuthGuard } from '../common/admin-auth.guard';
 import { randomToken } from '../common/crypto.util';
 import { AdminService } from './admin.service';
+import { JobsService } from '../jobs/jobs.service';
 
 @ApiTags('admin')
 @ApiSecurity('admin-token')
@@ -24,6 +26,7 @@ export class AdminController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly admin: AdminService,
+    private readonly jobsService: JobsService,
   ) {}
 
   @Get('stats')
@@ -47,6 +50,16 @@ export class AdminController {
       failedOnly: failedOnly === '1' || failedOnly === 'true',
       limit: limit ? parseInt(limit, 10) : undefined,
     });
+  }
+
+  @Post('jobs/:id/retry')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Requeue a FAILED job: attempts reset to 0, back to PENDING',
+  })
+  async retryJob(@Param('id') id: string) {
+    const job = await this.jobsService.retryJob(id);
+    return { job };
   }
 
   @Get('players')

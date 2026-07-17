@@ -227,7 +227,7 @@ model Job {
   leaseExpiresAt DateTime? @map("lease_expires_at")
 
   attempts    Int @default(0)
-  maxAttempts Int @default(5)
+  maxAttempts Int @default(3)
 
   // Progress reporting
   progress Int     @default(0)

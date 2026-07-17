@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Job, JobSource, JobStatus, Prisma } from '@prisma/client';
+import { Job, JobSource, JobStatus, MatchStatus, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { normalizeShareCode } from '../common/sharecode.util';
 import { ClipsService } from '../clips/clips.service';
@@ -61,8 +61,11 @@ export class JobsService {
           AND (
             status = 'PENDING'
             OR (
-              status = 'LEASED' 
-              AND "lease_expires_at" IS NOT NULL 
+              -- PROCESSING too: the worker's first heartbeat moves a job past
+              -- LEASED, so a worker that dies mid-render leaves it PROCESSING
+              -- with a lapsed lease.
+              status IN ('LEASED', 'PROCESSING')
+              AND "lease_expires_at" IS NOT NULL
               AND "lease_expires_at" < ${now}
             )
           )
@@ -153,7 +156,14 @@ export class JobsService {
     }
 
     const now = new Date();
-    const isTerminal = dto.status === 'COMPLETED' || dto.status === 'FAILED';
+    // A worker-reported failure only goes terminal once the job has burned
+    // all its attempts (attempts is incremented at lease time, so a job that
+    // failed on its 3rd lease has attempts === maxAttempts). Anything short
+    // of that is put back in the queue for the next lease to retry.
+    const willRequeue =
+      dto.status === 'FAILED' && job.attempts < job.maxAttempts;
+    const isTerminal =
+      dto.status === 'COMPLETED' || (dto.status === 'FAILED' && !willRequeue);
 
     const data: Prisma.JobUpdateInput = {
       progress: dto.progress ?? job.progress,
@@ -168,7 +178,20 @@ export class JobsService {
       data.status = dto.status as JobStatus;
     }
 
-    if (isTerminal) {
+    if (willRequeue) {
+      // Non-terminal failure: back to the queue, keep the error text visible
+      // so the dashboard shows what the last attempt died on.
+      data.status = 'PENDING';
+      data.progress = 0;
+      data.stage = 'queued';
+      data.message = `Attempt ${job.attempts}/${job.maxAttempts} failed — waiting for retry`;
+      (data as any).leasedBy = null;
+      (data as any).leaseExpiresAt = null;
+      (data as any).leasedAt = null;
+      this.logger.warn(
+        `Job ${jobId} failed attempt ${job.attempts}/${job.maxAttempts}, requeued: ${dto.error ?? 'no error given'}`,
+      );
+    } else if (isTerminal) {
       data.completedAt = now;
       // Clear lease fields on terminal state.
       // Use any-cast because of how Prisma generates optional relation/scalar fields in UpdateInput.
@@ -179,12 +202,13 @@ export class JobsService {
       data.status = 'PROCESSING';
     }
 
-    // Renew the lease on every non-terminal progress report by the lease holder.
+    // Renew the lease on every non-terminal progress report by the lease holder
+    // (but not on a requeue, whose lease fields were just cleared).
     // A render can run far longer than the visibility timeout while producing no
     // output, so without this a worker's own heartbeats would let the lease
     // lapse and cleanupStaleLeases could hand the job to another worker (double
     // render). The worker heartbeats well under the timeout to keep it alive.
-    if (!isTerminal && isLeaseHolder) {
+    if (!isTerminal && !willRequeue && isLeaseHolder) {
       (data as any).leaseExpiresAt = new Date(now.getTime() + this.visibilityTimeoutMs);
     }
 
@@ -200,7 +224,7 @@ export class JobsService {
       if (dto.status === 'COMPLETED') {
         const { ingested } = await this.clips.ingestCompletedJob(updated);
         this.logger.log(`Job ${updated.id} completed: ingested ${ingested} clip(s)`);
-      } else if (dto.status === 'FAILED') {
+      } else if (dto.status === 'FAILED' && !willRequeue) {
         await this.clips.markJobMatchFailed(updated);
       } else if (dto.stage && STAGES_PAST_DOWNLOAD.has(dto.stage)) {
         await this.clips.markJobMatchDownloaded(updated);
@@ -223,7 +247,7 @@ export class JobsService {
       data: {
         type: data.type ?? 'clip',
         payload: data.payload as Prisma.InputJsonValue,
-        maxAttempts: data.maxAttempts ?? 5,
+        maxAttempts: data.maxAttempts ?? 3,
       },
     });
   }
@@ -307,7 +331,7 @@ export class JobsService {
           playerId: data.playerId,
           shareCode,
           payload: payload as Prisma.InputJsonValue,
-          maxAttempts: data.maxAttempts ?? 5,
+          maxAttempts: data.maxAttempts ?? 3,
         },
       });
 
@@ -361,16 +385,57 @@ export class JobsService {
   }
 
   /**
+   * Manual admin retry of a job that exhausted its attempts: reset the
+   * attempt counter and put it back in the queue. Also flips the Match
+   * projection back from FAILED so the dashboard shows it in-flight again.
+   */
+  async retryJob(id: string): Promise<Job> {
+    const job = await this.prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.status !== 'FAILED' && job.status !== 'CANCELLED') {
+      throw new BadRequestException(
+        `Only FAILED or CANCELLED jobs can be retried (job is ${job.status})`,
+      );
+    }
+
+    const updated = await this.prisma.job.update({
+      where: { id },
+      data: {
+        status: 'PENDING',
+        attempts: 0,
+        progress: 0,
+        stage: 'queued',
+        message: 'Manually requeued from admin dashboard',
+        error: null,
+        completedAt: null,
+        leasedBy: null,
+        leasedAt: null,
+        leaseExpiresAt: null,
+      },
+    });
+
+    await this.prisma.match.updateMany({
+      where: { jobId: id, status: MatchStatus.FAILED },
+      data: { status: MatchStatus.DETECTED },
+    });
+
+    this.logger.log(`Job ${id} manually requeued (was ${job.status})`);
+    return updated;
+  }
+
+  /**
    * Periodic maintenance (call from a simple cron or on demand).
    * Releases truly stuck leases and marks exhausted attempts as FAILED.
    */
   async cleanupStaleLeases(): Promise<{ released: number; failed: number }> {
     const now = new Date();
 
-    // 1. Release leases that have truly expired (visibility timeout)
+    // 1. Release leases that have truly expired (visibility timeout).
+    // PROCESSING included: a job whose worker died after the first heartbeat
+    // is PROCESSING with a lapsed lease, not LEASED.
     const released = await this.prisma.job.updateMany({
       where: {
-        status: 'LEASED',
+        status: { in: ['LEASED', 'PROCESSING'] },
         leaseExpiresAt: { lt: now },
       },
       data: {
