@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuthGuard } from '../common/admin-auth.guard';
 import { randomToken } from '../common/crypto.util';

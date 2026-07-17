@@ -4,7 +4,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { Job, Match, MatchStatus, Prisma } from '@prisma/client';
+import { Job, Match, MatchStatus, Prisma } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { clipRowFromResultEntry, WorkerClipEntry } from './clip-ingest.util';
 import { generatePublicCode, isClipUuid } from './public-code.util';

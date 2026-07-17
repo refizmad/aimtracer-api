@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../prisma/client';
 
 /**
  * One entry of a worker's `result.clips[]` — the clipper's metadata sidecar

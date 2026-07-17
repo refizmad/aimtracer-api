@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Job, JobSource, JobStatus, MatchStatus, Prisma } from '@prisma/client';
+import { Job, JobSource, JobStatus, MatchStatus, Prisma } from '../prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { normalizeShareCode } from '../common/sharecode.util';
 import { ClipsService } from '../clips/clips.service';

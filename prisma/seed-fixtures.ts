@@ -14,13 +14,15 @@
  *
  * Idempotent: upserts by natural keys. Run: npm run db:seed:fixtures
  */
-import { PrismaClient, JobStatus, JobSource, MatchStatus } from '@prisma/client';
+import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
+import { JobStatus, JobSource, MatchStatus } from '../src/prisma/client';
+import { createPrismaClient } from '../src/prisma/create-prisma-client';
 import { clipRowFromResultEntry, WorkerClipEntry } from '../src/clips/clip-ingest.util';
 import { generatePublicCode } from '../src/clips/public-code.util';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 interface FixtureEntry extends WorkerClipEntry {
   file: string;

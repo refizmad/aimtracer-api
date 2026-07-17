@@ -10,10 +10,12 @@
  *   document.cookie = "aimtrace_session=<token>; path=/";
  *   location.href = "/clips";
  */
-const { PrismaClient } = require('@prisma/client');
+require('dotenv').config();
+require('ts-node/register');
 const crypto = require('crypto');
+const { createPrismaClient } = require('../src/prisma/create-prisma-client');
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function sha256Hex(value) {

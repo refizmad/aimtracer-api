@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MatchStatus, Prisma } from '@prisma/client';
+import { MatchStatus, Prisma } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type MatchListQuery = {

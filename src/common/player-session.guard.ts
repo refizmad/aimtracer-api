@@ -8,7 +8,7 @@ import {
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { sha256Hex } from './crypto.util';
-import { PlayerStatus } from '@prisma/client';
+import { PlayerStatus } from '../prisma/client';
 
 export interface AuthenticatedPlayer {
   id: string;

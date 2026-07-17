@@ -1,4 +1,4 @@
-import { MatchStatus } from '@prisma/client';
+import { MatchStatus } from '../prisma/client';
 import { MatchesService } from './matches.service';
 
 describe('MatchesService.listMine shape (integration-light)', () => {

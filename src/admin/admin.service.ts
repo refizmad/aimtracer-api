@@ -4,7 +4,7 @@ import {
   JobStatus,
   MatchStatus,
   Prisma,
-} from '@prisma/client';
+} from '../prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 

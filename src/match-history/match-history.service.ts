@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EnrollmentStatus, JobSource } from '@prisma/client';
+import { EnrollmentStatus, JobSource } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobsService } from '../jobs/jobs.service';
 import { SteamMatchHistoryClient } from './steam-match-history.client';

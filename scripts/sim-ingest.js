@@ -2,13 +2,20 @@
  * Simulate a worker COMPLETED report and verify Clip/Match ingestion (M2).
  * Does not hit S3 or Steam. Uses a disposable player + share code.
  */
-const { PrismaClient, JobStatus, JobSource, MatchStatus } = require('@prisma/client');
+require('dotenv').config();
+require('ts-node/register');
+const {
+  JobStatus,
+  JobSource,
+  MatchStatus,
+} = require('../src/prisma/client');
+const { createPrismaClient } = require('../src/prisma/create-prisma-client');
 // nest build emits under dist/src (see package layout).
 const { ClipsService } = require('../dist/src/clips/clips.service');
 const { S3MediaService } = require('../dist/src/clips/s3-media.service');
 const { ConfigService } = require('@nestjs/config');
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function main() {
   const steamId64 = '76561197999999999';

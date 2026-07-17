@@ -1,6 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
-import { MatchStatus } from '@prisma/client';
+import { MatchStatus } from '../prisma/client';
 import { PlayerSessionGuard, AuthenticatedPlayer } from '../common/player-session.guard';
 import { CurrentPlayer } from '../common/current-player.decorator';
 import { MatchesService } from './matches.service';

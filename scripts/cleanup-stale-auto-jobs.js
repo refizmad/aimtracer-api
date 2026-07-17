@@ -1,6 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
+require('dotenv').config();
+require('ts-node/register');
+const { createPrismaClient } = require('../src/prisma/create-prisma-client');
 
-const p = new PrismaClient();
+const p = createPrismaClient();
 
 async function main() {
   const enr = await p.matchHistoryEnrollment.findFirst();

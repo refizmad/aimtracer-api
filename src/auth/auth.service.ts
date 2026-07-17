@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildSteamOpenIdUrl, verifySteamOpenId } from './steam-openid';
 import { randomToken, sha256Hex } from '../common/crypto.util';
-import { PlayerStatus } from '@prisma/client';
+import { PlayerStatus } from '../prisma/client';
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;

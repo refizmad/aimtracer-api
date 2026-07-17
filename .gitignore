@@ -35,6 +35,7 @@ deploy/backups/*
 # prisma
 # (keep generated client but not migrations if desired)
 prisma/migrations/*-manual
+src/generated
 
 # IDE
 .idea

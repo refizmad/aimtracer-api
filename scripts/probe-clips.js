@@ -4,7 +4,9 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
+require('dotenv').config();
+require('ts-node/register');
+const { createPrismaClient } = require('../src/prisma/create-prisma-client');
 
 function loadEnv() {
   const raw = fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8');
@@ -18,7 +20,7 @@ function loadEnv() {
 
 async function main() {
   const env = loadEnv();
-  const prisma = new PrismaClient();
+  const prisma = createPrismaClient();
   const clipCount = await prisma.clip.count();
   const withUrl = await prisma.clip.count({ where: { url: { not: null } } });
   console.log('db clips', clipCount, 'with url field', withUrl);
