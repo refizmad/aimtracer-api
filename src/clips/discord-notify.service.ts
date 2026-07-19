@@ -11,10 +11,9 @@ const ANNOUNCE_GAP_MS = 400;
 
 /**
  * Posts freshly rendered clips to a Discord channel via an incoming webhook
- * (DISCORD_WEBHOOK_URL). Each clip is its own message: the share URL is
- * spoiler-wrapped (||url||) so the raw link is hidden, but Discord still
- * unfurls OpenGraph (poster + og:video). One link per message keeps embeds
- * clean; a short gap between posts keeps multi-clip drops readable.
+ * (DISCORD_WEBHOOK_URL). Each clip is its own message with a bare share URL
+ * so Discord unfurls OpenGraph (poster + og:video). One link per message
+ * keeps embeds clean; a short gap between posts keeps multi-clip drops readable.
  *
  * Strictly best-effort: unset webhook = silent no-op, and a Discord failure
  * only logs a warning — it can never fail the job report that triggered it.
@@ -42,10 +41,9 @@ export class DiscordNotifyService {
     let announced = 0;
     for (let i = 0; i < clips.length; i++) {
       const clip = clips[i]!;
-      // One message per clip. Spoiler hides the raw URL; Discord still unfurls.
-      // Embed title (player | type [style] | map) already says everything.
-      const url = `${this.siteUrl}/clip/${encodeURIComponent(clip.publicCode)}`;
-      const content = `||${url}||`;
+      // One message per clip: bare link only — the unfurled embed title
+      // (player | type [style] | map) already says everything.
+      const content = `${this.siteUrl}/clip/${encodeURIComponent(clip.publicCode)}`;
       try {
         const res = await fetch(this.webhookUrl, {
           method: 'POST',
