@@ -20,7 +20,7 @@ describe('AdminService', () => {
         create: jest.fn(),
       },
     };
-    const svc = new AdminService(prisma as any, {} as any);
+    const svc = new AdminService(prisma as any, {} as any, {} as any);
     const out = await svc.workerSetup({
       publicApiUrl: 'https://api.example.com/',
     });
@@ -68,7 +68,7 @@ describe('AdminService', () => {
       },
     };
 
-    const svc = new AdminService(prisma as any, {} as any);
+    const svc = new AdminService(prisma as any, {} as any, {} as any);
     const out = await svc.overview();
 
     expect(out.totals.clipsRendered).toBe(36);

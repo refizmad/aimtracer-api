@@ -1,6 +1,11 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /** Default playable URL lifetime for gallery loads (1 hour). */
@@ -73,6 +78,99 @@ export class S3MediaService {
   objectKeyForFile(file: string): string {
     const base = file.replace(/^\/+/, '');
     return this.prefix ? `${this.prefix}/${base}` : base;
+  }
+
+  /**
+   * Every object key belonging to one clip file: the mp4 itself plus its
+   * companions by upload.py convention — `<stem>.jpg` poster, `<stem>.json`
+   * metadata sidecar.
+   */
+  keysForClipFile(file: string): string[] {
+    const base = file.replace(/^\/+/, '');
+    const stem = base.replace(/\.[^.]+$/, '');
+    return [base, `${stem}.jpg`, `${stem}.json`].map((f) =>
+      this.objectKeyForFile(f),
+    );
+  }
+
+  /**
+   * Best-effort bucket delete for clip files (mp4 + poster + sidecar each).
+   * Never throws — a bucket hiccup or missing delete permission must not
+   * block the DB delete that triggered it. Missing keys count as deleted
+   * (standard S3 DeleteObjects semantics).
+   */
+  async deleteClipObjects(
+    files: string[],
+  ): Promise<{ deleted: number; errors: string[] }> {
+    return this.deleteObjectKeys([
+      ...new Set(files.flatMap((f) => this.keysForClipFile(f))),
+    ]);
+  }
+
+  /** Best-effort delete of exact (already-prefixed) object keys. Never throws. */
+  async deleteObjectKeys(
+    keys: string[],
+  ): Promise<{ deleted: number; errors: string[] }> {
+    if (keys.length === 0) return { deleted: 0, errors: [] };
+    if (!this.configured || !this.client || !this.bucket) {
+      return { deleted: 0, errors: ['S3 not configured'] };
+    }
+    let deleted = 0;
+    const errors: string[] = [];
+    for (let i = 0; i < keys.length; i += 1000) {
+      const chunk = keys.slice(i, i + 1000);
+      try {
+        const res = await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: {
+              Objects: chunk.map((Key) => ({ Key })),
+              Quiet: false,
+            },
+          }),
+        );
+        deleted += res.Deleted?.length ?? 0;
+        for (const err of res.Errors ?? []) {
+          errors.push(`${err.Key}: ${err.Code} ${err.Message ?? ''}`.trim());
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        this.logger.warn(`S3 delete failed for ${chunk.length} key(s): ${msg}`);
+        errors.push(msg);
+      }
+    }
+    if (errors.length > 0) {
+      this.logger.warn(
+        `S3 clip delete finished with ${errors.length} error(s): ${errors[0]}`,
+      );
+    }
+    return { deleted, errors };
+  }
+
+  /**
+   * All object keys under the clip prefix (paginated). Throws when S3 is not
+   * configured — callers gate on isConfigured() first.
+   */
+  async listAllObjects(): Promise<Array<{ key: string; size: number }>> {
+    if (!this.configured || !this.client || !this.bucket) {
+      throw new ServiceUnavailableException('S3 is not configured');
+    }
+    const out: Array<{ key: string; size: number }> = [];
+    let token: string | undefined;
+    do {
+      const res = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: this.prefix ? `${this.prefix}/` : undefined,
+          ContinuationToken: token,
+        }),
+      );
+      for (const obj of res.Contents ?? []) {
+        if (obj.Key) out.push({ key: obj.Key, size: obj.Size ?? 0 });
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return out;
   }
 
   /**

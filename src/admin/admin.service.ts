@@ -12,6 +12,7 @@ import {
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobsService } from '../jobs/jobs.service';
+import { S3MediaService } from '../clips/s3-media.service';
 import { normalizeShareCode } from '../common/sharecode.util';
 
 /** Worker considered online if lastSeen within this window (ms). */
@@ -22,6 +23,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobs: JobsService,
+    private readonly media: S3MediaService,
   ) {}
 
   async overview() {
@@ -487,10 +489,18 @@ export class AdminService {
     }
 
     const matchIds = matches.map((m) => m.id);
+    // Grab the S3 file names BEFORE the rows disappear.
+    const clipFiles = (
+      await this.prisma.clip.findMany({
+        where: { matchId: { in: matchIds } },
+        select: { file: true },
+      })
+    ).map((c) => c.file);
     const clipsDeleted = await this.prisma.clip.deleteMany({
       where: { matchId: { in: matchIds } },
     });
     await this.prisma.match.deleteMany({ where: { id: { in: matchIds } } });
+    const s3 = await this.media.deleteClipObjects(clipFiles);
 
     return {
       deleted: true,
@@ -499,6 +509,8 @@ export class AdminService {
       matchesDeleted: matchIds.length,
       clipsDeleted: clipsDeleted.count,
       cancelledJobs: cancelled,
+      s3ObjectsDeleted: s3.deleted,
+      s3Errors: s3.errors,
     };
   }
 
@@ -564,10 +576,17 @@ export class AdminService {
       cancelledJob = match.job.id;
     }
 
+    const clipFiles = (
+      await this.prisma.clip.findMany({
+        where: { matchId: id },
+        select: { file: true },
+      })
+    ).map((c) => c.file);
     const clipsDeleted = await this.prisma.clip.deleteMany({
       where: { matchId: id },
     });
     await this.prisma.match.delete({ where: { id } });
+    const s3 = await this.media.deleteClipObjects(clipFiles);
 
     return {
       deleted: true,
@@ -575,6 +594,8 @@ export class AdminService {
       shareCode: match.shareCode,
       clipsDeleted: clipsDeleted.count,
       cancelledJob,
+      s3ObjectsDeleted: s3.deleted,
+      s3Errors: s3.errors,
     };
   }
 
@@ -582,11 +603,79 @@ export class AdminService {
     const clip = await this.prisma.clip.findUnique({ where: { id } });
     if (!clip) throw new NotFoundException('Clip not found');
     await this.prisma.clip.delete({ where: { id } });
+    const s3 = await this.media.deleteClipObjects([clip.file]);
     return {
       deleted: true,
       clipId: id,
       file: clip.file,
-      note: 'DB row removed; S3 object may still exist until lifecycle cleanup',
+      s3ObjectsDeleted: s3.deleted,
+      s3Errors: s3.errors,
+    };
+  }
+
+  /**
+   * Bucket hygiene: report (and optionally delete) clip objects no Clip row
+   * references anymore — the leak left by pre-cleanup deletes.
+   *
+   * Deliberately conservative: only `.mp4` / `.jpg` / `.json` keys under the
+   * clip prefix are candidates, the `clips.json` manifest is always kept, and
+   * anything else in the bucket is reported as skipped but never touched.
+   * Nothing is deleted unless `remove` is explicitly true.
+   */
+  async sweepOrphanObjects(opts?: { remove?: boolean }) {
+    if (!this.media.isConfigured()) {
+      throw new BadRequestException('S3 is not configured on this API');
+    }
+
+    const [objects, clips] = await Promise.all([
+      this.media.listAllObjects(),
+      this.prisma.clip.findMany({ select: { file: true } }),
+    ]);
+
+    const referenced = new Set<string>();
+    for (const c of clips) {
+      for (const key of this.media.keysForClipFile(c.file)) {
+        referenced.add(key);
+      }
+    }
+    const manifestKey = this.media.objectKeyForFile('clips.json');
+
+    const orphans: Array<{ key: string; size: number }> = [];
+    const skipped: string[] = [];
+    for (const obj of objects) {
+      if (obj.key === manifestKey || referenced.has(obj.key)) continue;
+      if (/\.(mp4|jpg|json)$/i.test(obj.key)) {
+        orphans.push(obj);
+      } else {
+        skipped.push(obj.key);
+      }
+    }
+    const orphanBytes = orphans.reduce((sum, o) => sum + o.size, 0);
+
+    let removed = 0;
+    let removeErrors: string[] = [];
+    if (opts?.remove && orphans.length > 0) {
+      // Keys are exact — bypass keysForClipFile expansion by deleting the
+      // already-prefixed keys through the same best-effort path.
+      const res = await this.media.deleteObjectKeys(
+        orphans.map((o) => o.key),
+      );
+      removed = res.deleted;
+      removeErrors = res.errors;
+    }
+
+    return {
+      bucketObjects: objects.length,
+      referencedClips: clips.length,
+      orphanCount: orphans.length,
+      orphanBytes,
+      orphanHuman: formatBytes(orphanBytes),
+      // Cap the listing so a huge backlog doesn't blow up the response.
+      orphans: orphans.slice(0, 500),
+      skippedUnknownKeys: skipped.slice(0, 100),
+      removed: opts?.remove ? removed : 0,
+      removeErrors,
+      dryRun: !opts?.remove,
     };
   }
 

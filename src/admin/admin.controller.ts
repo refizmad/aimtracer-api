@@ -184,6 +184,16 @@ export class AdminController {
     return this.admin.deleteClip(id);
   }
 
+  @Post('storage/sweep')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Find bucket objects no Clip row references. Dry-run unless remove=true.',
+  })
+  async sweepStorage(@Body() body?: { remove?: boolean }) {
+    return this.admin.sweepOrphanObjects({ remove: body?.remove === true });
+  }
+
   @Get('players')
   @ApiOperation({ summary: 'Per-player activity + enrollment + invite used' })
   async players() {

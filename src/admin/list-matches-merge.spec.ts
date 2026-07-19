@@ -70,7 +70,7 @@ describe('AdminService.listMatches merge by shareCode', () => {
       },
     };
 
-    const svc = new AdminService(prisma as any, {} as any);
+    const svc = new AdminService(prisma as any, {} as any, {} as any);
     const out = await svc.listMatches({ limit: 50 });
 
     expect(out.matches).toHaveLength(2);
