@@ -51,8 +51,27 @@ model Worker {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   jobs Job[]
+  logs WorkerLog[]
 
   @@map("workers")
+}
+
+/// Rolling console-log lines shipped by render workers (POST /worker/logs) so
+/// the admin dashboard can tail what the render PC is doing. Pruned per worker
+/// on ingest — this is a live tail, not an archive.
+model WorkerLog {
+  id        BigInt   @id @default(autoincrement())
+  workerId  String   @map("worker_id")
+  jobId     String?  @map("job_id")
+  line      String
+  /// Worker-side timestamp (falls back to ingest time when absent).
+  at        DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([workerId, id])
+  @@map("worker_logs")
 }
 
 model Player {

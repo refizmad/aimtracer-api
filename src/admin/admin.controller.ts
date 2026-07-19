@@ -18,6 +18,7 @@ import { AdminAuthGuard } from '../common/admin-auth.guard';
 import { randomToken } from '../common/crypto.util';
 import { AdminService } from './admin.service';
 import { JobsService } from '../jobs/jobs.service';
+import { WorkerLogsService } from '../worker/worker-logs.service';
 
 @ApiTags('admin')
 @ApiSecurity('admin-token')
@@ -29,6 +30,7 @@ export class AdminController {
     private readonly prisma: PrismaService,
     private readonly admin: AdminService,
     private readonly jobsService: JobsService,
+    private readonly workerLogs: WorkerLogsService,
   ) {}
 
   @Get('stats')
@@ -192,6 +194,23 @@ export class AdminController {
   @ApiOperation({ summary: 'Worker health, current job, queue depth' })
   async workers() {
     return this.admin.listWorkers();
+  }
+
+  @Get('workers/:id/logs')
+  @ApiOperation({
+    summary: 'Live console-log tail for a worker (oldest-first)',
+  })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'afterId', required: false })
+  async workerLogTail(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('afterId') afterId?: string,
+  ) {
+    return this.workerLogs.tail(id, {
+      limit: limit ? parseInt(limit, 10) : undefined,
+      afterId,
+    });
   }
 
   @Post('invites')

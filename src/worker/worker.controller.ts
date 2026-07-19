@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   Param,
   Query,
   Body,
@@ -14,13 +15,18 @@ import { CurrentWorker } from '../common/current-worker.decorator';
 import { JobsService } from '../jobs/jobs.service';
 import { LeaseQueryDto } from '../jobs/dto/lease-job.dto';
 import { UpdateProgressDto } from '../jobs/dto/update-progress.dto';
+import { ShipLogsDto } from './dto/ship-logs.dto';
+import { WorkerLogsService } from './worker-logs.service';
 
 @ApiTags('worker')
 @ApiSecurity('machine-token')
 @Controller('worker')
 @UseGuards(WorkerAuthGuard)
 export class WorkerController {
-  constructor(private readonly jobsService: JobsService) {}
+  constructor(
+    private readonly jobsService: JobsService,
+    private readonly workerLogs: WorkerLogsService,
+  ) {}
 
   /**
    * Lease the next available job.
@@ -67,6 +73,21 @@ export class WorkerController {
   ) {
     const job = await this.jobsService.updateJobProgress(id, worker.id, dto);
     return { ok: true, jobId: job.id, status: job.status, progress: job.progress };
+  }
+
+  /**
+   * Ship a batch of console-log lines for the admin dashboard's live tail.
+   * Best-effort: the worker drops batches on failure instead of retrying.
+   */
+  @Post('logs')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Ship worker console-log lines (admin live tail)' })
+  async shipLogs(
+    @CurrentWorker() worker: AuthenticatedWorker,
+    @Body() dto: ShipLogsDto,
+  ) {
+    const res = await this.workerLogs.ingest(worker.id, dto.lines);
+    return { ok: true, ...res };
   }
 
   // Convenience: allow worker to fetch full details of a job it is working on

@@ -4,9 +4,10 @@ import { AdminService } from './admin.service';
 import { AdminAuthGuard } from '../common/admin-auth.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JobsModule } from '../jobs/jobs.module';
+import { WorkerModule } from '../worker/worker.module';
 
 @Module({
-  imports: [PrismaModule, JobsModule],
+  imports: [PrismaModule, JobsModule, WorkerModule],
   controllers: [AdminController],
   providers: [AdminAuthGuard, AdminService],
   exports: [AdminService],
