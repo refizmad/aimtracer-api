@@ -53,6 +53,10 @@ export type PublicClip = {
   clipType: string | null;
   score: number | null;
   durationS: number | null;
+  /** Sidecar special-kill counts, e.g. { noscope: 2, wallbang: 1 }. */
+  specials: Record<string, number> | null;
+  /** Compact per-kill events from the sidecar (weapon, headshot, flags). */
+  killEvents: Array<Record<string, unknown>> | null;
   playerName: string | null;
   playerSteamId: string | null;
   demoName: string | null;
@@ -434,6 +438,8 @@ export class ClipsService implements OnModuleInit {
     clipType: string | null;
     score: number | null;
     durationS: number | null;
+    specials: unknown;
+    killEvents: unknown;
     playerName: string | null;
     playerSteamId: string | null;
     demoName: string | null;
@@ -459,6 +465,8 @@ export class ClipsService implements OnModuleInit {
       clipType: row.clipType,
       score: row.score,
       durationS: row.durationS,
+      specials: asSpecialsMap(row.specials),
+      killEvents: asKillEvents(row.killEvents),
       playerName: row.playerName,
       playerSteamId: row.playerSteamId,
       demoName: row.demoName,
@@ -514,4 +522,27 @@ export class ClipsService implements OnModuleInit {
 /** Poster object basename convention: same as the mp4 with .jpg. */
 export function posterFileFromClip(file: string): string {
   return file.replace(/\.mp4$/i, '.jpg');
+}
+
+/** Sidecar specials JSON → plain count map (drop garbage shapes). */
+function asSpecialsMap(v: unknown): Record<string, number> | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out: Record<string, number> = {};
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isFinite(n) && n > 0) out[k] = n;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** Sidecar kill_events JSON → list of plain objects. */
+function asKillEvents(v: unknown): Array<Record<string, unknown>> | null {
+  if (!Array.isArray(v) || v.length === 0) return null;
+  const out: Array<Record<string, unknown>> = [];
+  for (const item of v) {
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      out.push(item as Record<string, unknown>);
+    }
+  }
+  return out.length ? out : null;
 }

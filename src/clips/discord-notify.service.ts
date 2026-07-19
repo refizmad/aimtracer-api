@@ -6,14 +6,15 @@ export type AnnouncedClip = {
   publicCode: string;
 };
 
-/** Discord unfurls at most 5 links per message; chunk announcements to that. */
-const LINKS_PER_MESSAGE = 5;
+/** Pause between multi-clip drops so the channel doesn't get a spam wall. */
+const ANNOUNCE_GAP_MS = 400;
 
 /**
  * Posts freshly rendered clips to a Discord channel via an incoming webhook
- * (DISCORD_WEBHOOK_URL). The clip share links are sent as plain message
- * content so Discord unfurls each one with the page's OpenGraph tags —
- * poster image and (og:video) inline playable video.
+ * (DISCORD_WEBHOOK_URL). Each clip is its own message: the share URL is
+ * spoiler-wrapped (||url||) so the raw link is hidden, but Discord still
+ * unfurls OpenGraph (poster + og:video). One link per message keeps embeds
+ * clean; a short gap between posts keeps multi-clip drops readable.
  *
  * Strictly best-effort: unset webhook = silent no-op, and a Discord failure
  * only logs a warning — it can never fail the job report that triggered it.
@@ -38,15 +39,13 @@ export class DiscordNotifyService {
   async announceNewClips(clips: AnnouncedClip[]): Promise<void> {
     if (!this.webhookUrl || clips.length === 0) return;
 
-    for (let i = 0; i < clips.length; i += LINKS_PER_MESSAGE) {
-      const chunk = clips.slice(i, i + LINKS_PER_MESSAGE);
-      // Bare links only: the unfurled embed's title (player · type · map)
-      // already says everything.
-      const content = chunk
-        .map(
-          (c) => `${this.siteUrl}/clip/${encodeURIComponent(c.publicCode)}`,
-        )
-        .join('\n');
+    let announced = 0;
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i]!;
+      // One message per clip. Spoiler hides the raw URL; Discord still unfurls.
+      // Embed title (player | type [style] | map) already says everything.
+      const url = `${this.siteUrl}/clip/${encodeURIComponent(clip.publicCode)}`;
+      const content = `||${url}||`;
       try {
         const res = await fetch(this.webhookUrl, {
           method: 'POST',
@@ -61,7 +60,11 @@ export class DiscordNotifyService {
           this.logger.warn(
             `Discord webhook rejected clip announcement: HTTP ${res.status} ${body.slice(0, 200)}`,
           );
-          return; // a rejected chunk means later chunks would fail the same way
+          return; // further posts would fail the same way
+        }
+        announced++;
+        if (i < clips.length - 1) {
+          await sleep(ANNOUNCE_GAP_MS);
         }
       } catch (e) {
         this.logger.warn(
@@ -70,6 +73,10 @@ export class DiscordNotifyService {
         return;
       }
     }
-    this.logger.log(`Announced ${clips.length} new clip(s) to Discord`);
+    this.logger.log(`Announced ${announced} new clip(s) to Discord`);
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
