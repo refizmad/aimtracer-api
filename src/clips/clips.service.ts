@@ -29,6 +29,10 @@ const STATUS_RANK: Record<MatchStatus, number> = {
 export type ClipListQuery = {
   /** When set, only this player's clips (GET /clips/mine). */
   playerId?: string;
+  /** Logged-in player the `favorited` flag is computed for. */
+  viewerId?: string;
+  /** Only clips the viewer has favorited (needs viewerId). */
+  favoritesOnly?: boolean;
   /** Filter by Steam64 of the clip owner. */
   steamId64?: string;
   map?: string;
@@ -63,6 +67,8 @@ export type PublicClip = {
   reason: string | null;
   matchDate: string | null;
   createdAt: string;
+  /** Whether the requesting player has favorited this clip (list endpoints only). */
+  favorited?: boolean;
   /** Same-origin BFF path for the video media hop. */
   playUrl: string;
   /** Same-origin BFF path for the JPEG poster (convention: <file>.jpg in S3). */
@@ -228,6 +234,9 @@ export class ClipsService implements OnModuleInit {
 
     const where: Prisma.ClipWhereInput = {};
     if (q.playerId) where.playerId = q.playerId;
+    if (q.favoritesOnly && q.viewerId) {
+      where.favoritedBy = { some: { playerId: q.viewerId } };
+    }
     if (q.steamId64) {
       where.OR = [
         { playerSteamId: q.steamId64 },
@@ -274,16 +283,51 @@ export class ClipsService implements OnModuleInit {
             },
           },
           match: { select: { matchDate: true } },
+          // Just the viewer's own favorite row (empty array = not favorited).
+          favoritedBy: q.viewerId
+            ? { where: { playerId: q.viewerId }, select: { playerId: true } }
+            : undefined,
         },
       }),
     ]);
 
     return {
-      clips: rows.map((r) => this.toPublic(r)),
+      clips: rows.map((r) =>
+        this.toPublic(
+          r,
+          q.viewerId ? (r.favoritedBy?.length ?? 0) > 0 : undefined,
+        ),
+      ),
       total,
       page,
       pageSize,
     };
+  }
+
+  /**
+   * Set/unset the viewer's favorite on a clip (by public code or UUID).
+   * Idempotent both ways: re-favoriting or un-favoriting a non-favorite is
+   * a no-op, so double-clicks and stale UIs can't error.
+   */
+  async setFavorite(
+    idOrCode: string,
+    playerId: string,
+    favorited: boolean,
+  ): Promise<{ clipId: string; favorited: boolean }> {
+    const clip = await this.findClipByIdOrCode(idOrCode);
+    if (!clip) throw new NotFoundException('Clip not found');
+    if (favorited) {
+      await this.prisma.clipFavorite.upsert({
+        where: { playerId_clipId: { playerId, clipId: clip.id } },
+        create: { playerId, clipId: clip.id },
+        update: {},
+      });
+    } else {
+      await this.prisma.clipFavorite.deleteMany({
+        where: { playerId, clipId: clip.id },
+      });
+    }
+    return { clipId: clip.id, favorited };
   }
 
   /**
@@ -453,8 +497,9 @@ export class ClipsService implements OnModuleInit {
       avatarUrl: string | null;
     } | null;
     match: { matchDate: Date } | null;
-  }): PublicClip {
+  }, favorited?: boolean): PublicClip {
     return {
+      ...(favorited !== undefined ? { favorited } : {}),
       id: row.id,
       publicCode: row.publicCode,
       file: row.file,

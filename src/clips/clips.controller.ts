@@ -1,7 +1,10 @@
 import {
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -35,8 +38,13 @@ export class ClipsController {
   @ApiQuery({ name: 'order', required: false, description: 'asc | desc' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'pageSize', required: false })
+  @ApiQuery({
+    name: 'favorites',
+    required: false,
+    description: '1 = only clips the current player has favorited',
+  })
   async list(
-    @CurrentPlayer() _player: AuthenticatedPlayer,
+    @CurrentPlayer() player: AuthenticatedPlayer,
     @Query('player') steamId64?: string,
     @Query('map') map?: string,
     @Query('minKills') minKills?: string,
@@ -45,8 +53,11 @@ export class ClipsController {
     @Query('order') order?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('favorites') favorites?: string,
   ) {
     return this.clips.listClips({
+      viewerId: player.id,
+      favoritesOnly: favorites === '1' || favorites === 'true',
       steamId64: steamId64?.trim() || undefined,
       map: map?.trim() || undefined,
       minKills: minKills != null && minKills !== '' ? parseInt(minKills, 10) : undefined,
@@ -81,6 +92,7 @@ export class ClipsController {
   ) {
     return this.clips.listClips({
       playerId: player.id,
+      viewerId: player.id,
       map: map?.trim() || undefined,
       minKills: minKills != null && minKills !== '' ? parseInt(minKills, 10) : undefined,
       type: type?.trim() || undefined,
@@ -89,6 +101,30 @@ export class ClipsController {
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
     });
+  }
+
+  @Post(':id/favorite')
+  @HttpCode(200)
+  @UseGuards(PlayerSessionGuard)
+  @ApiSecurity('session-token')
+  @ApiOperation({ summary: 'Favorite a clip for the current player' })
+  async favorite(
+    @CurrentPlayer() player: AuthenticatedPlayer,
+    @Param('id') id: string,
+  ) {
+    return this.clips.setFavorite(id, player.id, true);
+  }
+
+  @Delete(':id/favorite')
+  @HttpCode(200)
+  @UseGuards(PlayerSessionGuard)
+  @ApiSecurity('session-token')
+  @ApiOperation({ summary: 'Remove a clip from the current player’s favorites' })
+  async unfavorite(
+    @CurrentPlayer() player: AuthenticatedPlayer,
+    @Param('id') id: string,
+  ) {
+    return this.clips.setFavorite(id, player.id, false);
   }
 
   @Get(':id/media')

@@ -89,8 +89,24 @@ model Player {
   enrollment MatchHistoryEnrollment?
   matches    Match[]
   clips      Clip[]
+  favorites  ClipFavorite[]
 
   @@map("players")
+}
+
+/// A player's saved ("favorited") clip. Pure join row — favoriting never
+/// affects the clip itself, and both ends cascade so deletes stay clean.
+model ClipFavorite {
+  playerId  String   @map("player_id")
+  clipId    String   @map("clip_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  clip   Clip   @relation(fields: [clipId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, clipId])
+  @@index([clipId])
+  @@map("clip_favorites")
 }
 
 model Session {
@@ -225,9 +241,10 @@ model Clip {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
-  match  Match?  @relation(fields: [matchId], references: [id], onDelete: SetNull)
-  job    Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  player      Player?        @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  match       Match?         @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  job         Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  favoritedBy ClipFavorite[]
 
   @@index([playerId, createdAt])
   @@index([matchId])
