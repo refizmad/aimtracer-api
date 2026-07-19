@@ -4,10 +4,6 @@ import { ConfigService } from '@nestjs/config';
 /** One freshly ingested clip, ready to announce. */
 export type AnnouncedClip = {
   publicCode: string;
-  playerName: string | null;
-  map: string | null;
-  kills: number | null;
-  clipType: string | null;
 };
 
 /** Discord unfurls at most 5 links per message; chunk announcements to that. */
@@ -44,7 +40,13 @@ export class DiscordNotifyService {
 
     for (let i = 0; i < clips.length; i += LINKS_PER_MESSAGE) {
       const chunk = clips.slice(i, i + LINKS_PER_MESSAGE);
-      const content = chunk.map((c) => this.formatClipLine(c)).join('\n');
+      // Bare links only: the unfurled embed's title (player · type · map)
+      // already says everything.
+      const content = chunk
+        .map(
+          (c) => `${this.siteUrl}/clip/${encodeURIComponent(c.publicCode)}`,
+        )
+        .join('\n');
       try {
         const res = await fetch(this.webhookUrl, {
           method: 'POST',
@@ -70,19 +72,4 @@ export class DiscordNotifyService {
     }
     this.logger.log(`Announced ${clips.length} new clip(s) to Discord`);
   }
-
-  private formatClipLine(c: AnnouncedClip): string {
-    const who = c.playerName || 'Unknown player';
-    const what = c.clipType ? c.clipType.toUpperCase() : 'Highlight';
-    const where = c.map ? ` on ${formatMap(c.map)}` : '';
-    const kills =
-      c.kills != null && Number.isFinite(c.kills) ? ` (${c.kills} kills)` : '';
-    return `🎬 **${who}** — ${what}${where}${kills}\n${this.siteUrl}/clip/${encodeURIComponent(c.publicCode)}`;
-  }
-}
-
-/** de_mirage → Mirage (display only; raw names pass through unchanged). */
-function formatMap(map: string): string {
-  const bare = map.replace(/^(de|cs|ar)_/, '');
-  return bare.charAt(0).toUpperCase() + bare.slice(1);
 }

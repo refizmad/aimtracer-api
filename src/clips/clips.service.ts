@@ -139,13 +139,7 @@ export class ClipsService implements OnModuleInit {
       });
       ingested++;
       if (!knownFiles.has(row.file)) {
-        fresh.push({
-          publicCode: saved.publicCode,
-          playerName: row.playerName ?? null,
-          map: row.map ?? null,
-          kills: row.kills ?? null,
-          clipType: row.clipType ?? null,
-        });
+        fresh.push({ publicCode: saved.publicCode });
       }
     }
 
