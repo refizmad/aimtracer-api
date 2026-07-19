@@ -13,6 +13,10 @@ import {
 } from './clip-ingest.util';
 import { generatePublicCode, isClipUuid } from './public-code.util';
 import { S3MediaService } from './s3-media.service';
+import {
+  AnnouncedClip,
+  DiscordNotifyService,
+} from './discord-notify.service';
 
 /** Forward-only lifecycle rank; FAILED never overwrites RENDERED. */
 const STATUS_RANK: Record<MatchStatus, number> = {
@@ -74,6 +78,7 @@ export class ClipsService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly media: S3MediaService,
+    private readonly discord: DiscordNotifyService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -98,7 +103,24 @@ export class ClipsService implements OnModuleInit {
     const matches = await this.findJobMatches(job);
     const playerIdBySteamId = await this.mapPlayersBySteamId(entries);
 
+    // Files that already have rows are re-renders — announce only new clips.
+    const knownFiles = new Set(
+      (
+        await this.prisma.clip.findMany({
+          where: {
+            file: {
+              in: entries
+                .map((e) => (typeof e?.file === 'string' ? e.file : ''))
+                .filter((f) => f.length > 0),
+            },
+          },
+          select: { file: true },
+        })
+      ).map((c) => c.file),
+    );
+
     let ingested = 0;
+    const fresh: AnnouncedClip[] = [];
     for (const entry of entries) {
       const row = clipRowFromResultEntry(entry);
       if (!row) continue;
@@ -109,14 +131,28 @@ export class ClipsService implements OnModuleInit {
         playerIdBySteamId,
       );
       const publicCode = await this.allocatePublicCode();
-      await this.prisma.clip.upsert({
+      const saved = await this.prisma.clip.upsert({
         where: { file: row.file },
         create: { ...row, ...ownership, publicCode },
         // Never rotate publicCode on re-render — share links must stay stable.
         update: { ...row, ...ownership },
       });
       ingested++;
+      if (!knownFiles.has(row.file)) {
+        fresh.push({
+          publicCode: saved.publicCode,
+          playerName: row.playerName ?? null,
+          map: row.map ?? null,
+          kills: row.kills ?? null,
+          clipType: row.clipType ?? null,
+        });
+      }
     }
+
+    // Fire-and-forget: a Discord hiccup must never fail the job report.
+    void this.discord.announceNewClips(fresh).catch((e: Error) => {
+      this.logger.warn(`Discord clip announcement failed: ${e.message}`);
+    });
 
     const fromClips = entries
       .map(clipRowFromResultEntry)
