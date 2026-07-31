@@ -70,4 +70,27 @@ describe('S3MediaService', () => {
     expect(svc.isConfigured()).toBe(true);
     expect(svc.objectKeyForFile('a.mp4')).toBe('clips/a.mp4');
   });
+
+  it('keeps the match folder in keys for match-namespaced clip files', () => {
+    // The worker reports `file` as `<match>/<clip>.mp4` — bare basenames
+    // collide across matches. The poster/sidecar convention must resolve
+    // inside that folder, not at the prefix root.
+    const svc = new S3MediaService(
+      makeConfig({
+        S3_ENDPOINT_URL: 'https://s3.example',
+        S3_BUCKET: 'b',
+        S3_ACCESS_KEY_ID: 'k',
+        S3_SECRET_ACCESS_KEY: 's',
+        S3_PREFIX: 'clips/',
+        NODE_ENV: 'production',
+      }),
+    );
+    const file = 'cache_3834202332606759222/refi_3k_cache_001.mp4';
+    expect(svc.objectKeyForFile(file)).toBe(`clips/${file}`);
+    expect(svc.keysForClipFile(file)).toEqual([
+      'clips/cache_3834202332606759222/refi_3k_cache_001.mp4',
+      'clips/cache_3834202332606759222/refi_3k_cache_001.jpg',
+      'clips/cache_3834202332606759222/refi_3k_cache_001.json',
+    ]);
+  });
 });
