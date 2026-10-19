@@ -122,7 +122,7 @@ export class AuthService {
     // One-time use
     await this.prisma.authState.delete({ where: { id: authState.id } });
 
-    const verified = await verifySteamOpenId(opts.query);
+    const verified = await verifySteamOpenId(opts.query, authState.returnTo);
     if (verified.ok === false) {
       this.logger.warn(`Steam OpenID failed: ${verified.reason}`);
       throw new UnauthorizedException('Steam login verification failed');

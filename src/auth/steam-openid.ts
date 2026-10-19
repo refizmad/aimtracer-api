@@ -30,22 +30,55 @@ export function extractSteamId64(claimedId: string | undefined | null): string |
   return m ? m[1] : null;
 }
 
+/** Fields Steam must have signed, or a valid signature proves nothing about them. */
+const REQUIRED_SIGNED_FIELDS = [
+  'op_endpoint',
+  'claimed_id',
+  'identity',
+  'return_to',
+  'response_nonce',
+  'assoc_handle',
+];
+
 /**
  * Verify OpenID assertion with Steam via check_authentication.
  * `query` is the raw callback query object (openid.* keys).
+ * `expectedReturnTo` is the exact return_to we sent Steam for this login.
+ *
+ * check_authentication only proves Steam issued the assertion — not that it
+ * was issued for us. Without the return_to check, any site offering "Sign in
+ * through Steam" could replay a visitor's assertion here and log in as them.
  */
 export async function verifySteamOpenId(
   query: Record<string, string | string[] | undefined>,
+  expectedReturnTo: string,
 ): Promise<{ ok: true; steamId64: string } | { ok: false; reason: string }> {
   const mode = first(query['openid.mode']);
   if (mode !== 'id_res') {
     return { ok: false, reason: `Unexpected openid.mode: ${mode}` };
   }
 
+  if (first(query['openid.op_endpoint']) !== STEAM_OPENID_URL) {
+    return { ok: false, reason: 'Unexpected openid.op_endpoint' };
+  }
+
+  if (!sameReturnTo(first(query['openid.return_to']), expectedReturnTo)) {
+    return { ok: false, reason: 'openid.return_to does not match this login' };
+  }
+
+  const signed = new Set((first(query['openid.signed']) || '').split(','));
+  const unsigned = REQUIRED_SIGNED_FIELDS.filter((f) => !signed.has(f));
+  if (unsigned.length > 0) {
+    return { ok: false, reason: `Unsigned fields: ${unsigned.join(', ')}` };
+  }
+
   const claimedId = first(query['openid.claimed_id']);
   const steamId64 = extractSteamId64(claimedId);
   if (!steamId64) {
     return { ok: false, reason: 'Invalid claimed_id' };
+  }
+  if (first(query['openid.identity']) !== claimedId) {
+    return { ok: false, reason: 'identity does not match claimed_id' };
   }
 
   // Rebuild signed fields for check_authentication
@@ -82,6 +115,25 @@ export async function verifySteamOpenId(
   }
 
   return { ok: true, steamId64 };
+}
+
+/**
+ * Same URL as the one we sent, compared parsed so harmless re-encoding by
+ * Steam or the BFF does not matter. Every query param (the auth state among
+ * them) must match too.
+ */
+export function sameReturnTo(actual: string | undefined, expected: string): boolean {
+  if (!actual) return false;
+  try {
+    const a = new URL(actual);
+    const e = new URL(expected);
+    if (a.origin !== e.origin || a.pathname !== e.pathname) return false;
+    const aParams = [...a.searchParams].sort().join('&');
+    const eParams = [...e.searchParams].sort().join('&');
+    return aParams === eParams;
+  } catch {
+    return false;
+  }
 }
 
 function first(v: string | string[] | undefined): string | undefined {
